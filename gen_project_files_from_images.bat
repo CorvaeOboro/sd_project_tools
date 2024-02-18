@@ -1,2 +1,0 @@
-python project_files_from_images.py
-pause
