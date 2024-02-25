@@ -1,9 +1,9 @@
 # sd_project_tools
-stable diffusion project tools , focused on batch processing image generation across an organized folder structure . 
+stable diffusion project tools , focused on batch processing image generation variants . 
 
-a collection of tools useful for large scale asset synthesis . each "project" is a folder with a source image ( target img2img ), a .project file ( stores settings overrides ) , and a 'selected' subfolder containing synthesized images . the python tools included help to generate such a structure and to then batch process multiple projects . 
+a collection of tools for large scale asset synthesis . each "project" is a folder with a source image ( target img2img ) , a .project file ( settings overrides ) , and a 'selected' subfolder containing synthesized images . the python tools included help to generate such a structure and to then batch process multiple projects . 
 
-an example for texture synthesis = we have a low resolution source images of a stone brick pattern , and in the 'selected' folder multiple images of different stone textures that were previously synthesized using stable diffusion , thus containing the prompt/neg in their metadata . using gen_batch_prompts_in_projects the prompt/neg pairs are gathered from 'selected' and randomly combined into a new list of variants , and a .bat is generated that will use the auto1111 webui api to run img2img with controlnet for all the prompt variants , and across multiple checkpoints , saving into the projects 'output' subfolder . this becomes a useful setup when many projects .
+example for texture synthesis = a low resolution source images of a stone brick pattern , the 'selected' folder contains multiple images of different stone textures synthesized using stable diffusion containing the prompt/neg in their metadata . gen_batch_prompts_in_projects.py gathers the prompt/neg pairs from 'selected' and randomly combines into a new list of variants , a local and project-wide .bat is generated that will use the auto1111 webui api to run img2img with controlnet for all the prompt variants , across multiple checkpoints , saving the variants into each projects 'output' subfolder . 
 
 requires [auto1111 webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) with --api for image synthesis
 
@@ -12,8 +12,8 @@ requires [auto1111 webui](https://github.com/AUTOMATIC1111/stable-diffusion-webu
 - pip install -r requirements.txt
 
 # project tools
-- [gen_batch_prompts_in_projects.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_batch_prompts_in_projects.py) = searchs a folder structure for .project files , for each project found it gathers the associated image prompts and generates the batch files for image generation , writing prompt variants . 
-- [gen_project_files_from_images.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_project_files_from_images.py) = given a folder of images / textures creates named folders and project files for each . 
+- [gen_batch_prompts_in_projects.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_batch_prompts_in_projects.py) = searchs folders recursively for .project files , for each project gathers the metadata image prompts and generates the local and project-wide batch files for image generation ,  prompt variants . 
+- [gen_project_files_from_images.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_project_files_from_images.py) = given a folder of images create named folders and project files for each . 
 - [sd_batch_image_gen_auto1111_webui.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/sd_batch_image_gen_auto1111_webui.py) = a basic controller of stable diffusion auto1111 webui api , includes specific arguments to cycle through each prompt/neg pair , each target img2img , each checkpoint . 
 
 # image prompt tools
