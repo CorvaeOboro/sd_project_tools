@@ -15,7 +15,7 @@ from sdparsers import ParserManager
 PROJECT_ROOT_FOLDERPATH = 'D:/CODE/STABLEDIFFUSION_AUTO/PROJECTS/'
 API_PATH = 'D:/CODE/SD_PROJECT_BATCH_TOOLS/'
 API_PY = 'sd_batch_image_gen_auto1111_webui.py'
-WORD_LIMIT = 7000  # Word limit for the word_limiter function
+WORD_LIMIT = 7000  # Word limit for the word_limiter function 
 PROMPT_STRENGTH = 0.3
 PROMPT_RANDOM_TOTAL = 400
 ERROR_LOG_FILE = 'sd_batch_image_gen_auto1111_webui_error_log.txt'
@@ -44,7 +44,7 @@ def safe_run(func): # Decorator for safe execution and error logging
             return None
     return wrapper
 
-# STRING UTILS
+# STRING UTILS=========================================================================
 @safe_run
 def string_replace_fix_multiline(input_string):
     replacements = ['\n', 'BREAK', ',', '  ']

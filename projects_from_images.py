@@ -1,15 +1,21 @@
 
-# for each image create folder with name
+# IMAGES TO PROJECTS
+# for each image create folder matching name and move into it , add .project files , create 'selected' folder add image as selected
 import os
 import glob
 from pathlib import Path
 import pathlib
 import shutil
 
-rootdir = os.path.dirname(os.path.abspath(__file__))
+rootdir = os.path.dirname(os.path.abspath(__file__)) # current directory of py file
+image_formats = ["jpeg","jpg","png","bmp","gif","webp"]
 
 directory_input = rootdir
-file_list = glob.glob(directory_input + '/' + '*.jpeg') + glob.glob(directory_input + '/' + '*.jpg')+ glob.glob(directory_input + '/' + '*.png')+ glob.glob(directory_input + '/' + '*.bmp')
+file_list = []
+for current_image_format in image_formats:
+    file_list += glob.glob(directory_input + '/' + '*.' +current_image_format)
+    
+print(file_list)
 
 for current_image in file_list:
     current_image_name = pathlib.PurePath(str(current_image)).stem

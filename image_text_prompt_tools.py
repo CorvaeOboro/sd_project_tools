@@ -1,8 +1,8 @@
-#// TEXT PROMPT HELPER - image metadata parser with tools to analyze , combine , balance , and simplify prompts 
+#// IMAGE TEXT PROMPT TOOLS - image metadata parser with tools to analyze , combine , balance , and simplify prompts 
 #// drag an image into working area , use "copy to work area" button to copy prompt , drag in other image and repeat 
 #// BALANCE = working area text is merged , duplicate prompts removed , prompt strength is balanced , duplicate loras removed
 #// SIMPLIFY = removes all strength modifiers on prompt groups , removes group parenthesis 
-#// LORA SCALE = relatively scale the strength of all loras to fit a maximum and multiply by scaler   
+#// LORA SCALE = relatively scale the strength of all loras to fit a maximum and multiply by adjustable scaler   
 #//=================================================================================
 # UI
 import PyQt5.QtWidgets 
@@ -24,7 +24,7 @@ import pyperclip
 import chardet
 from pathlib import Path
 
-ERROR_LOG_FILE = "text_prompt_helper_error_log.txt"
+ERROR_LOG_FILE = "image_text_prompt_tools_error_log.txt"
 ROUNDING_DECIMAL_PLACE = 2
 REPLACE_UNDERSCORES = True
 
