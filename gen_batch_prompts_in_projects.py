@@ -20,8 +20,8 @@ PROMPT_STRENGTH = 0.3
 PROMPT_RANDOM_TOTAL = 400
 ERROR_LOG_FILE = 'sd_batch_image_gen_auto1111_webui_error_log.txt'
 
-# Add a function to read JSON configuration from a project file
-def read_project_config(project_file):
+#//===========================================================================================
+def read_project_config(project_file): # read JSON configuration from a project file
     try:
         with open(project_file, 'r') as file:
             return json.load(file)

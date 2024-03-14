@@ -1,7 +1,7 @@
 # SORT CIVITAI FILES
-# sort the safetensors based on the civitai.info ( created by auto111 extension civitai helper )  
-# sorts into specific folders for LORA , TextualInversion , and separate by ModelType
-# current base models =  Stable DIffusion , SDXL , Stable Cascade , Pony Diffusion
+# sort the safetensors based on the civitai.info ( created by auto1111 extension - civitai helper )  
+# sorts existing structure of folders into basemodel and type subfolders
+# Checkpoints , LORA , LoCon , TextualInversion , separated by parent BaseModelType ( SD 1.5 , SDXL )
 import os
 import json
 import shutil
@@ -11,17 +11,7 @@ import tkinter as tk
 from tkinter import filedialog
 from threading import Thread
 
-# BASEMODEL info example =   "baseModel": "SD 1.5",
-BASEMODEL_FOLDERNAME = {  # the left is the basemodel string and the right is the safe folder
-    'SD 1.5': 'StableDiffusion',
-    'SD 2.0': 'SD2',
-    'SDXL': 'SDXL',
-    'StableDiffusion': 'StableDiffusion',
-    'Stable Cascade': 'StableCascade',
-    'Pony': 'PonyDiffusion'
-}
-
-# TYPE info example =    "model": {"name": "3DCG-Test","type": "Checkpoint"}
+# TYPE info example =    "model": {"name": "3DModelTestA","type": "Checkpoint"}
 TYPE_FOLDERNAME = {  # Directory for each type
     'Checkpoint': 'Checkpoint',
     'LORA': 'LORA',
@@ -35,10 +25,7 @@ NEURALNETS_EXTENSIONS = ['.safetensors', '.pt', '.ckpt']  # Extensions to sort
 INFO_EXTENSION = '.civitai.info'  # Info file extension
 PREVIEW_EXTENSION = '.preview.png'  # Preview file extension
 
-def create_directories(base_dir, type_dirs):
-    for dir in type_dirs.values():
-        os.makedirs(os.path.join(base_dir, dir), exist_ok=True)
-
+#//=========================================================================================================
 def get_file_hash(filepath):
     with open(filepath, 'rb') as f:
         return hashlib.sha256(f.read()).hexdigest()
@@ -81,7 +68,6 @@ def move_files_to_model_dir(file, info_file, preview_file, base_dir, model_type,
 
 def sort_files(base_dir, extensions, info_ext, preview_ext, type_dirs):
     print("SORT = " + str(base_dir) + "     ext=  " + str(extensions))
-    create_directories(base_dir, type_dirs)
 
     for ext in extensions:
         globbedfiles = glob.glob(f'{base_dir}/**/*{ext}', recursive=True)
@@ -115,12 +101,6 @@ def remove_files_with_extension(base_dir, file_ext):
         except OSError as e:
             print(f"Error removing {file}: {e}")
 
-def remove_info_files(base_dir, info_ext):
-    remove_files_with_extension(base_dir, info_ext)
-
-def remove_preview_files(base_dir, preview_ext):
-    remove_files_with_extension(base_dir, preview_ext)
-
 def remove_duplicates(base_dir, extensions):
     file_hashes = {}
     for ext in extensions:
@@ -140,6 +120,8 @@ def select_directory():
     entry.delete(0, tk.END)
     entry.insert(0, directory)
 
+#//===========================================================================================================
+#// UI
 if __name__ == "__main__":
     root = tk.Tk()
     root.title('Civitai File Organizer')
@@ -154,13 +136,21 @@ if __name__ == "__main__":
     sort_button = tk.Button(root, text='Sort Files', command=lambda: sort_files(entry.get(), NEURALNETS_EXTENSIONS, INFO_EXTENSION, PREVIEW_EXTENSION, TYPE_FOLDERNAME), bg='#555555', fg='white')
     sort_button.pack(pady=5)
 
-    delete_info_button = tk.Button(root, text='Delete Info Files', command=lambda: remove_info_files(entry.get(), INFO_EXTENSION), bg='#555555', fg='white')
+    delete_info_button = tk.Button(root, text='Delete Info Files', command=lambda: remove_files_with_extension(entry.get(), INFO_EXTENSION), bg='#555555', fg='white')
     delete_info_button.pack(pady=5)
 
-    delete_preview_button = tk.Button(root, text='Delete Preview Files', command=lambda: remove_preview_files(entry.get(), PREVIEW_EXTENSION), bg='#555555', fg='white')
+    delete_preview_button = tk.Button(root, text='Delete Preview Files', command=lambda: remove_files_with_extension(entry.get(), PREVIEW_EXTENSION), bg='#555555', fg='white')
     delete_preview_button.pack(pady=5)
 
     remove_duplicates_button = tk.Button(root, text='Remove Duplicates', command=lambda: remove_duplicates(entry.get(), NEURALNETS_EXTENSIONS), bg='#555555', fg='white')
     remove_duplicates_button.pack(pady=5)
 
     root.mainloop()
+
+#// TODO ===========================================================
+# add hash checking to double check if a file copy transfer was good
+# add a delay between transfers 
+# make the remove duplicates prioritize by multiple parameters , first keep the oldest version , if the same date keep the file with the shortest name to disfavor copies "(1)" suffixs
+# make sure to not copy if existing with same hash ( dont iterate filename for exact copy )
+# set default directory path text entry 
+# color buttons , separate the buttons to two sides 

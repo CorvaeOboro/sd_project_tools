@@ -1,3 +1,6 @@
+# PROJECTS FROM CIVITAI INFO
+# recursive search for .info files , for each create a project folder matching the existing organized subfolder structure 
+# creates .project and downloads all of the image examples into the projects 'selected' folder for replicatoion
 import os
 import json
 import requests
@@ -9,6 +12,7 @@ INFO_DIRECTORY = 'D:/CODE/STABLEDIFFUSION_AUTO/models/Lora'
 PROJECT_DIRECTORY = 'D:/CODE/STABLEDIFFUSION_AUTO/PROJECTS/LORA'
 DOWNLOAD_DELAY = 5  # seconds
 
+#//============================================================================================
 def download_image(url, save_path):
     if not save_path.exists():
         try:
@@ -50,6 +54,7 @@ def process_info_file(info_file_path):
             if not save_path.exists():
                 download_image(url, save_path)
 
+#//===========================================================================================
 def main():
     info_files = [Path(root) / file for root, dirs, files in os.walk(INFO_DIRECTORY) for file in files if file.endswith('.civitai.info')]
     for info_file_path in tqdm(info_files, desc='Processing .civitai.info files'):

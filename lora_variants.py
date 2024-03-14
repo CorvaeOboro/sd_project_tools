@@ -1,6 +1,5 @@
 #// LORA VARIANTS
 #// create all variants of lora strength of prompt , keep under a maximum 
-#//===========================================================================================
 import re
 import itertools
 from tkinter import *
@@ -9,14 +8,12 @@ from tkinter import *
 STRENGTH_TOTAL = 1.0  # 2.0
 STRENGTH_MAX_INDIVIDUAL = 0.7  # 1.0
 
-
+#//===========================================================================================
 def extract_loras(text):
     # Extracts all LORAs from the text
     lora_pattern = r"<lora:([^:>]+):([\d\.]+)>"
     loras_extracted = re.findall(lora_pattern, text)
     return loras_extracted
-
-
 
 def generate_strength_combinations(num_loras, strength_max, max_individual):
     # Generates all possible combinations of LORA strengths
@@ -30,13 +27,11 @@ def generate_strength_combinations(num_loras, strength_max, max_individual):
 
     return valid_combinations
 
-
 def replace_lora_strength(text, lora_name, new_strength):
     # Replaces a single LORA's strength in the text
     lora_to_replace = f"<lora:{lora_name}:[\\d\\.]+>"
     new_lora_tag = f"<lora:{lora_name}:{new_strength:.1f}>"
     return re.sub(lora_to_replace, new_lora_tag, text, count=1)
-
 
 def create_permutations(text, loras, combinations):
     # Create permutations of the text with each combination of strengths
@@ -50,7 +45,6 @@ def create_permutations(text, loras, combinations):
 
     return permutations
 
-
 def lora_variants(text, strength_max, max_individual):
     loras = extract_loras(text)  # Extract LORAs
     print(loras)
@@ -59,9 +53,8 @@ def lora_variants(text, strength_max, max_individual):
 
     return final_permutations
 
-
-
-# Tkinter UI setup
+#//===========================================================================================
+#// UI
 root = Tk()
 root.title("LORA Variants Generator")
 root.configure(bg="#333333")
@@ -90,7 +83,6 @@ max_individual_strength_entry = Entry(root, width=10, **entry_style)
 max_individual_strength_entry.insert(0, STRENGTH_MAX_INDIVIDUAL)
 max_individual_strength_entry.pack()
 
-
 def generate_variants():
     input_text = text_entry.get("1.0", END)
     print("INPUT TEXT = " + str(input_text))
@@ -107,7 +99,6 @@ def generate_variants():
 
     text_output.close()
     print("COMPLETED = Saved permutations to lora_variants.txt ")
-
 
 generate_button = Button(root, text="Generate Variants", command=generate_variants, **button_style)
 generate_button.pack()

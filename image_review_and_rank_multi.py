@@ -1,8 +1,6 @@
 #// IMAGE REVIEW AND RANK 
 #// browse a folder of images with left right , move images into ranked folders using 1,2,3 , T for tiling view
 #//===========================================================================================
-
-IMAGE_SIZE = 500
 import os
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel, QFileDialog, QVBoxLayout,
                              QWidget, QGridLayout, QScrollArea, QMessageBox)
@@ -10,7 +8,9 @@ from PyQt5.QtGui import QPixmap, QMouseEvent
 from PyQt5.QtCore import Qt
 import qdarkstyle
 
+IMAGE_SIZE = 500
 
+#//===========================================================================================
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -23,7 +23,7 @@ class MainWindow(QMainWindow):
         self.num_rows = 2
 
     def init_ui(self):
-        self.setWindowTitle("Image Review and Rank --- LEFT RIGHT --- RANK 1 2 3 --- T = TILED MODE")
+        self.setWindowTitle("Image Review and Rank --- LEFT CLICK = 1 --- RIGHT CLICK = 2 ")
         self.setGeometry(100, 100, 800, 600)
         self.setStyleSheet("background-color: black;")
 
@@ -85,7 +85,7 @@ class MainWindow(QMainWindow):
             self.grid_layout.addWidget(label, i // 4, i % 4)
             self.image_labels.append(label)
 
-
+#//===========================================================================================
 if __name__ == '__main__':
     app = QApplication([])
     window = MainWindow()
