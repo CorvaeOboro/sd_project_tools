@@ -9,7 +9,7 @@ import glob
 import hashlib
 import tkinter as tk
 from tkinter import filedialog
-from threading import Thread
+# from threading import Thread # avoiding threading due to file copy incomplete errors
 import time
 from tqdm import tqdm
 

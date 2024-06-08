@@ -22,9 +22,9 @@ from collections import defaultdict
 #//========================================================================================
 # DEFAULTS - can be ovveriden by args parse
 SHUFFLE_PROMPTS = True
-CONTROLNET_STRENGTH = 0.01
+CONTROLNET_STRENGTH = 0.2
 TILING_SETTING = False
-DENOISE_STRENGTH = 0.99
+DENOISE_STRENGTH = 0.8
 API_URL = "http://127.0.0.1:7860"
 CHECKPOINTS_ARRAY  = ["neurogenV10_v10.safetensors","juggernaut_v19.safetensors"]
 
