@@ -15,6 +15,7 @@ class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.project_folder = os.getcwd()
+        self.middle_folder = ''  # Initialize middle folder as empty
         self.category_exclusion_list = []  # Add any categories to exclude
         self.item_exclusion_prefix = '00_'
         self.default_font_size = 12  # Default font size
@@ -25,6 +26,8 @@ class MainWindow(QMainWindow):
         self.folder_path = ''
         self.images = []
         self.image_labels = []
+        self.item_buttons_dict = {}    # Store ITEM buttons with item names as keys
+        self.item_image_counts = {}    # Store image counts for each ITEM
         self.init_ui()
 
     def init_ui(self):
@@ -43,9 +46,13 @@ class MainWindow(QMainWindow):
         self.project_line_edit.setPlaceholderText("Enter PROJECT folder path")
         self.project_line_edit.setText(self.project_folder)
         self.project_line_edit.returnPressed.connect(self.project_folder_changed)
+        self.middle_folder_line_edit = QLineEdit()
+        self.middle_folder_line_edit.setPlaceholderText("Enter optional middle folder name")
+        self.middle_folder_line_edit.returnPressed.connect(self.middle_folder_changed)
         self.browse_button = QPushButton("Browse")
         self.browse_button.clicked.connect(self.browse_project_folder)
         self.top_layout.addWidget(self.project_line_edit)
+        self.top_layout.addWidget(self.middle_folder_line_edit)
         self.top_layout.addWidget(self.browse_button)
         self.main_layout.addWidget(self.top_widget)
 
@@ -115,6 +122,12 @@ class MainWindow(QMainWindow):
         else:
             QMessageBox.warning(self, "Warning", "The specified PROJECT folder does not exist.")
 
+    def middle_folder_changed(self):
+        self.middle_folder = self.middle_folder_line_edit.text()
+        if self.current_category:
+            category_path = os.path.join(self.project_folder, self.current_category)
+            self.load_items(category_path)
+
     def browse_project_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Select PROJECT Directory")
         if folder:
@@ -160,20 +173,55 @@ class MainWindow(QMainWindow):
             if widget is not None:
                 widget.deleteLater()
 
-        # List ITEM folders in category folder
-        items = [name for name in os.listdir(category_path)
-                 if os.path.isdir(os.path.join(category_path, name))
+        # Clear previous ITEM buttons and counts
+        self.item_buttons_dict.clear()
+        self.item_image_counts.clear()
+        self.item_buttons = []
+
+        # Adjust category_path to include middle folder if specified
+        if self.middle_folder:
+            item_parent_path = os.path.join(category_path, self.middle_folder)
+        else:
+            item_parent_path = category_path
+
+        if not os.path.exists(item_parent_path):
+            QMessageBox.warning(self, "Warning", f"Item folder not found in {item_parent_path}")
+            return
+
+        # List ITEM folders in item_parent_path
+        items = [name for name in os.listdir(item_parent_path)
+                 if os.path.isdir(os.path.join(item_parent_path, name))
                  and not name.startswith(self.item_exclusion_prefix)]
 
         items.sort()
 
-        # Create buttons for each ITEM
-        self.item_buttons = []  # Store buttons to calculate max width later
+        # Get current font size for ITEM buttons
+        font_size_item = int(self.default_font_size * self.get_multiplier(self.item_multiplier_line_edit))
+
+        # Create buttons for each ITEM and count images
         for item in items:
             button = QPushButton(item)
             button.clicked.connect(self.item_button_clicked)
             self.item_layout.insertWidget(self.item_layout.count() - 1, button)  # Insert before multiplier
             self.item_buttons.append(button)
+            self.item_buttons_dict[item] = button  # Store in dict for easy access
+
+            # Get path to ITEM's 'gen' folder
+            if self.middle_folder:
+                item_path = os.path.join(category_path, self.middle_folder, item)
+            else:
+                item_path = os.path.join(category_path, item)
+            gen_folder_path = os.path.join(item_path, 'gen')
+
+            # Count images in 'gen' folder (excluding subfolders)
+            if os.path.exists(gen_folder_path):
+                num_images = len([f for f in os.listdir(gen_folder_path)
+                                  if os.path.isfile(os.path.join(gen_folder_path, f)) and f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+            else:
+                num_images = 0
+
+            # Store image count
+            self.item_image_counts[item] = num_images
 
         self.adjust_sizes()
 
@@ -182,7 +230,10 @@ class MainWindow(QMainWindow):
         item_name = button.text()
         self.current_item = item_name
         category_path = os.path.join(self.project_folder, self.current_category)
-        item_path = os.path.join(category_path, item_name)
+        if self.middle_folder:
+            item_path = os.path.join(category_path, self.middle_folder, item_name)
+        else:
+            item_path = os.path.join(category_path, item_name)
         self.load_images(item_path)
 
     def load_images(self, item_path):
@@ -194,7 +245,7 @@ class MainWindow(QMainWindow):
 
         self.folder_path = gen_folder_path
         self.images = [file for file in os.listdir(gen_folder_path)
-                       if file.lower().endswith(('.jpg', '.jpeg', '.png'))]
+                       if file.lower().endswith(('.jpg', '.jpeg', '.png')) and os.path.isfile(os.path.join(gen_folder_path, file))]
         self.display_images()
 
     def display_images(self):
@@ -239,28 +290,48 @@ class MainWindow(QMainWindow):
             os.rename(image_path, new_path)
             self.images.pop(image_index)
             self.display_images()
+            # Update the ITEM button color
+            self.update_item_button_color(self.current_item)
         except OSError as e:
             print(f"Error moving file: {e}")
+
+    def update_item_button_color(self, item_name):
+        button = self.item_buttons_dict.get(item_name)
+        if button:
+            # Get the path to the ITEM's 'gen' folder
+            category_path = os.path.join(self.project_folder, self.current_category)
+            if self.middle_folder:
+                item_path = os.path.join(category_path, self.middle_folder, item_name)
+            else:
+                item_path = os.path.join(category_path, item_name)
+            gen_folder_path = os.path.join(item_path, 'gen')
+            if os.path.exists(gen_folder_path):
+                num_images = len([f for f in os.listdir(gen_folder_path)
+                                  if os.path.isfile(os.path.join(gen_folder_path, f)) and f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+            else:
+                num_images = 0
+            self.item_image_counts[item_name] = num_images
+            font_size_item = int(self.default_font_size * self.get_multiplier(self.item_multiplier_line_edit))
+            self.set_item_button_style(button, num_images, font_size_item)
+
+    def set_item_button_style(self, button, num_images, font_size):
+        # Set the button's text color based on num_images
+        if num_images == 0:
+            color = 'red'
+        elif num_images <= 5:
+            color = 'orange'
+        else:
+            color = 'green'
+        button.setStyleSheet(f"font-size: {font_size}px; color: {color};")
 
     def adjust_sizes(self):
         window_width = self.width()
         window_height = self.height()
 
         # Calculate multipliers from input fields
-        try:
-            category_multiplier = float(self.category_multiplier_line_edit.text())
-        except ValueError:
-            category_multiplier = 1.0
-
-        try:
-            item_multiplier = float(self.item_multiplier_line_edit.text())
-        except ValueError:
-            item_multiplier = 1.0
-
-        try:
-            image_multiplier = float(self.image_multiplier_line_edit.text())
-        except ValueError:
-            image_multiplier = 1.0
+        category_multiplier = self.get_multiplier(self.category_multiplier_line_edit)
+        item_multiplier = self.get_multiplier(self.item_multiplier_line_edit)
+        image_multiplier = self.get_multiplier(self.image_multiplier_line_edit)
 
         # Adjust font sizes for CATEGORY and ITEM buttons
         font_size_category = int(self.default_font_size * category_multiplier)
@@ -284,15 +355,14 @@ class MainWindow(QMainWindow):
 
         # Update ITEM buttons
         max_item_width = 0
-        for i in range(self.item_layout.count() - 1):  # Exclude multiplier input
-            widget = self.item_layout.itemAt(i).widget()
-            if isinstance(widget, QPushButton):
-                widget.setStyleSheet(f"font-size: {font_size_item}px;")
-                # Calculate the width of the button text
-                font = widget.font()
-                fm = QFontMetrics(font)
-                text_width = fm.width(widget.text())
-                max_item_width = max(max_item_width, text_width)
+        for item_name, button in self.item_buttons_dict.items():
+            num_images = self.item_image_counts.get(item_name, 0)
+            self.set_item_button_style(button, num_images, font_size_item)
+            # Calculate the width of the button text
+            font = button.font()
+            fm = QFontMetrics(font)
+            text_width = fm.width(button.text())
+            max_item_width = max(max_item_width, text_width)
 
         # Set widths for CATEGORY and ITEM panels
         padding = 40  # Extra space for padding and scrollbar
@@ -302,6 +372,12 @@ class MainWindow(QMainWindow):
         # Redisplay images with new sizes
         if self.images:
             self.display_images()
+
+    def get_multiplier(self, line_edit):
+        try:
+            return float(line_edit.text())
+        except ValueError:
+            return 1.0
 
     def resizeEvent(self, event):
         self.adjust_sizes()
