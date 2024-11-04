@@ -23,7 +23,7 @@ TYPE_FOLDERNAME = {  # Directory for each type
 }
 
 LOCAL_DIR = os.path.dirname(os.path.abspath(__file__))  # Directory of the Python file
-TARGET_DIR = "./test"  # Directory of the neural network files to sort
+TARGET_DIR = r"D:\CODE\STABLEDIFFUSION_AUTO\models\Lora\zzzUNSORTED"  # Directory of the neural network files to sort
 NEURALNETS_EXTENSIONS = ['.safetensors', '.pt', '.ckpt']  # Extensions to sort
 INFO_EXTENSION = '.civitai.info'  # Info file extension
 PREVIEW_EXTENSION = '.preview.png'  # Preview file extension
@@ -37,32 +37,32 @@ def get_file_hash(filepath):
     with open(filepath, 'rb') as file:
         return hashlib.sha256(file.read()).hexdigest()
 
-# Safely move files , by doing a copy , then checking hash compare  
+# Safely move files by copying and verifying before deleting the source
 def safe_move_file(src, dest):
     original_dest = dest
     base, ext = os.path.splitext(dest)
     counter = 1
 
-    # if existing file with same name , then iterate filename 
+    # If a file with the same name exists, iterate the filename
     while os.path.exists(original_dest):
-        #if the existing files is the exact same hash and file size then remove the source
+        # If the existing file is exactly the same, remove the source
         if get_file_hash(src) == get_file_hash(original_dest) and os.path.getsize(src) == os.path.getsize(original_dest):
             os.remove(src)  # Only remove the source file if the copy is verified
             return
         else:
-            dest = f"{base}_{counter}{ext}"
+            original_dest = f"{base}_{counter}{ext}"
             counter += 1
 
     # Perform the file copy
-    shutil.copy2(src, dest)
+    shutil.copy2(src, original_dest)
     time.sleep(TRANSFER_DELAY)  # Wait to ensure the copy is not rushed
 
-    # Verify the copy , compare hash and filesize
-    if get_file_hash(src) == get_file_hash(dest) and os.path.getsize(src) == os.path.getsize(dest):
+    # Verify the copy by comparing hash and filesize
+    if get_file_hash(src) == get_file_hash(original_dest) and os.path.getsize(src) == os.path.getsize(original_dest):
         os.remove(src)  # Only remove the source file if the copy is verified
     else:
         print(f"Failed to verify the copy of {src}. Original remains in place.")
-        os.remove(dest) # removing failed copy
+        os.remove(original_dest)  # Remove failed copy
 
 def move_files_to_model_dir(file, info_file, preview_file, base_dir, model_type, type_dirs, preview_ext):
     if model_type in type_dirs:
@@ -71,7 +71,7 @@ def move_files_to_model_dir(file, info_file, preview_file, base_dir, model_type,
 
         dest_file = os.path.join(dest_dir, os.path.basename(file))
         dest_info_file = os.path.join(dest_dir, os.path.basename(info_file))
-        dest_preview_file = file.rsplit(".", 1)[0] + preview_ext
+        dest_preview_file = os.path.splitext(dest_file)[0] + preview_ext
 
         safe_move_file(file, dest_file)
         safe_move_file(info_file, dest_info_file)
@@ -81,18 +81,25 @@ def move_files_to_model_dir(file, info_file, preview_file, base_dir, model_type,
 # Main sorting function
 def sort_files(base_dir, extensions, info_ext, preview_ext, type_dirs):
     print("Starting file sorting...")
-    for ext in tqdm(extensions, desc="Processing extensions"):
-        for file in glob.glob(f'{base_dir}/**/*{ext}', recursive=True):
-            info_file = file.rsplit(".", 1)[0] + info_ext
-            preview_file = file.rsplit(".", 1)[0] + preview_ext
-            if os.path.exists(info_file):
-                with open(info_file, 'r') as f:
-                    info = json.load(f)
-                model_type = info.get('model', {}).get('type', '')
-                base_model_type = info.get('baseModel', '')
-                final_dir = os.path.join(base_dir, base_model_type, model_type)
-                os.makedirs(final_dir, exist_ok=True)
-                move_files_to_model_dir(file, info_file, preview_file, final_dir, model_type, type_dirs, preview_ext)
+
+    # Collect all files with the given extensions
+    all_files = []
+    for ext in extensions:
+        found_files = glob.glob(os.path.join(base_dir, '**', f'*{ext}'), recursive=True)
+        all_files.extend(found_files)
+
+    total_files = len(all_files)
+
+    for file in tqdm(all_files, desc="Sorting files", total=total_files):
+        info_file = os.path.splitext(file)[0] + info_ext
+        preview_file = os.path.splitext(file)[0] + preview_ext
+        if os.path.exists(info_file):
+            with open(info_file, 'r') as f:
+                info = json.load(f)
+            model_type = info.get('model', {}).get('type', '')
+            base_model_type = info.get('baseModel', '')
+            final_dir = os.path.join(base_dir, base_model_type, model_type)
+            move_files_to_model_dir(file, info_file, preview_file, final_dir, model_type, type_dirs, preview_ext)
 
 # UI and interaction
 def select_directory():
@@ -107,7 +114,7 @@ if __name__ == "__main__":
     root.configure(bg='#333333')
 
     entry = tk.Entry(root, width=50, bg='#666666', fg='white')
-    entry.insert(0, LOCAL_DIR)
+    entry.insert(0, TARGET_DIR)
     entry.pack(padx=10, pady=10)
 
     frame_buttons = tk.Frame(root, bg='#333333')

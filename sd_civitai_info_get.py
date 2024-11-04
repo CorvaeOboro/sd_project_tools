@@ -1,5 +1,3 @@
-# CIVITAI INFO GET = standalone scan safetensors hashes for civitai info and preview image 
-# example cli with args = python sd_civitai_info_get.py --checkpoint_dir "\models\unet" --lora_dir "\models\Lora" --max_size_preview
 import os
 import requests
 import hashlib
@@ -19,9 +17,9 @@ def compute_sha256(file_path):
     sha256_hash = hashlib.sha256()
     total_size = os.path.getsize(file_path)
     with open(file_path, "rb") as f, tqdm(
-        total=total_size, unit='B', unit_scale=True, desc=f"Hashing {os.path.basename(file_path)}"
+        total=total_size, unit='B', unit_scale=True, desc=f"Hashing {os.path.basename(file_path)}", leave=False
     ) as pbar:
-        for byte_block in iter(lambda: f.read(4096), b""):
+        for byte_block in iter(lambda: f.read(65536), b""):
             sha256_hash.update(byte_block)
             pbar.update(len(byte_block))
     return sha256_hash.hexdigest()
@@ -52,7 +50,7 @@ def download_image(url, save_path):
             r.raise_for_status()
             total_size = int(r.headers.get('content-length', 0))
             with open(save_path, 'wb') as f, tqdm(
-                total=total_size, unit='B', unit_scale=True, desc=f"Downloading {os.path.basename(save_path)}"
+                total=total_size, unit='B', unit_scale=True, desc=f"Downloading {os.path.basename(save_path)}", leave=False
             ) as pbar:
                 for chunk in r.iter_content(chunk_size=8192):
                     if chunk:
@@ -68,9 +66,9 @@ def get_full_size_image_url(image_url, width):
 def get_preview_image(base, model_info, max_size_preview=False, skip_nsfw_preview=False):
     """Download the preview image for a model."""
     preview_image_file = base + '.preview.png'
-    #if os.path.exists(preview_image_file):
-        #print(f"Preview image already exists: {preview_image_file}")
-        #return
+    if os.path.exists(preview_image_file):
+        print(f"Preview image already exists: {preview_image_file}")
+        return
     if 'images' in model_info:
         for image_info in model_info['images']:
             if skip_nsfw_preview and image_info.get('nsfw'):
@@ -84,37 +82,38 @@ def get_preview_image(base, model_info, max_size_preview=False, skip_nsfw_previe
                 print(f"Downloading preview image from {image_url}")
                 download_image(image_url, preview_image_file)
                 print(f"Saved preview image to {preview_image_file}")
-                # Only download the first image
+                # Only download the first valid image
                 break
     else:
         print("No images found in model info.")
 
-def scan_models(model_folders, model_extensions, max_size_preview=False, skip_nsfw_preview=False):
-    """Scan model directories and process each model file."""
-    total_models = 0
-    for model_type, model_folder in model_folders.items():
-        for root, dirs, files in os.walk(model_folder):
-            total_models += len([f for f in files if os.path.splitext(f)[1].lower() in model_extensions])
-
+def scan_models(model_dir, model_extensions, max_size_preview=False, skip_nsfw_preview=False):
+    """Scan model directory and process each model file."""
+    total_models = sum(len(files) for _, _, files in os.walk(model_dir))
     with tqdm(total=total_models, desc="Processing models") as pbar:
-        for model_type, model_folder in model_folders.items():
-            print(f"Scanning folder: {model_folder} for model type: {model_type}")
-            for root, dirs, files in os.walk(model_folder):
-                for filename in files:
-                    filepath = os.path.join(root, filename)
-                    base, ext = os.path.splitext(filepath)
-                    if ext.lower() in model_extensions:
-                        # Skip VAE files
-                        if base.lower().endswith(VAE_SUFFIX):
-                            print(f"Skipping VAE file: {filepath}")
-                            pbar.update(1)
-                            continue
-                        # Check if '.civitai.info' exists
-                        info_file = base + '.civitai.info'
-                        if os.path.exists(info_file):
-                            print(f"Info file already exists for {filepath}, skipping.")
-                            pbar.update(1)
-                            continue
+        for root, _, files in os.walk(model_dir):
+            for filename in files:
+                filepath = os.path.join(root, filename)
+                base, ext = os.path.splitext(filepath)
+                if ext.lower() in model_extensions:
+                    # Skip VAE files
+                    if base.lower().endswith(VAE_SUFFIX):
+                        print(f"Skipping VAE file: {filepath}")
+                        pbar.update(1)
+                        continue
+
+                    # Initialize flags
+                    info_file_exists = False
+                    preview_image_exists = False
+
+                    # Check if '.civitai.info' exists
+                    info_file = base + '.civitai.info'
+                    if os.path.exists(info_file):
+                        info_file_exists = True
+                        # Load model_info from existing .civitai.info file
+                        with open(info_file, 'r', encoding='utf-8') as f:
+                            model_info = json.load(f)
+                    else:
                         # Compute SHA256 hash
                         print(f"Computing SHA256 for {filepath}")
                         sha256_hash = compute_sha256(filepath)
@@ -130,28 +129,34 @@ def scan_models(model_folders, model_extensions, max_size_preview=False, skip_ns
                             with open(info_file, 'w', encoding='utf-8') as f:
                                 json.dump(model_info, f, indent=4)
                             print(f"Saved model info to {info_file}")
-                            # Download preview image
-                            get_preview_image(base, model_info, max_size_preview, skip_nsfw_preview)
                         else:
                             print(f"No matching model found on Civitai for {filepath}")
-                        # Respect rate limit
-                        time.sleep(0.5)
-                        pbar.update(1)
+                            pbar.update(1)
+                            continue  # Skip to next file
+
+                    # Check if '.preview.png' exists
+                    preview_image_file = base + '.preview.png'
+                    if os.path.exists(preview_image_file):
+                        preview_image_exists = True
+
+                    # If preview image does not exist, attempt to download it
+                    if not preview_image_exists:
+                        get_preview_image(base, model_info, max_size_preview, skip_nsfw_preview)
+
+                    # Respect rate limit
+                    time.sleep(0.5)
+                pbar.update(1)
     print("Scanning complete.")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Scan models and get info from Civitai.')
-    parser.add_argument('--checkpoint_dir', type=str, default='models/Stable-diffusion', help='Directory containing checkpoint models')
-    parser.add_argument('--lora_dir', type=str, default='models/Lora', help='Directory containing Lora models')
+    parser.add_argument('--model_dir', type=str, required=True, help='Directory containing models to scan')
     parser.add_argument('--extensions', nargs='+', default=['.ckpt', '.safetensors'], help='List of model file extensions to scan')
     parser.add_argument('--max_size_preview', action='store_true', help='Download max size preview images')
     parser.add_argument('--skip_nsfw_preview', action='store_true', help='Skip downloading NSFW preview images')
 
     args = parser.parse_args()
 
-    model_folders = {
-        'ckp': args.checkpoint_dir,
-        'lora': args.lora_dir,
-    }
+    model_dir = args.model_dir
 
-    scan_models(model_folders, args.extensions, args.max_size_preview, args.skip_nsfw_preview)
+    scan_models(model_dir, args.extensions, args.max_size_preview, args.skip_nsfw_preview)

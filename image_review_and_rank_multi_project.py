@@ -5,10 +5,38 @@ import os
 import sys
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout,
                              QWidget, QGridLayout, QScrollArea, QMessageBox, QPushButton, QHBoxLayout,
-                             QLineEdit, QFileDialog)
-from PyQt5.QtGui import QPixmap, QMouseEvent, QFont, QFontMetrics
-from PyQt5.QtCore import Qt
+                             QLineEdit, QFileDialog, QCheckBox)
+from PyQt5.QtGui import QPixmap, QMouseEvent, QFontMetrics, QImage
+from PyQt5.QtCore import Qt, QThreadPool, QRunnable, pyqtSignal, QObject, QSize, QEvent
 import qdarkstyle
+
+# ===========================================================================================
+class WorkerSignals(QObject):
+    finished = pyqtSignal()
+    error = pyqtSignal(tuple)
+    result = pyqtSignal(object)
+
+class ImageLoader(QRunnable):
+    def __init__(self, image_paths, image_width, image_height):
+        super().__init__()
+        self.image_paths = image_paths
+        self.image_width = image_width
+        self.image_height = image_height
+        self.signals = WorkerSignals()
+
+    def run(self):
+        images = []
+        for path in self.image_paths:
+            try:
+                image = QImage(path)
+                if image.isNull():
+                    continue
+                thumbnail = image.scaled(self.image_width, self.image_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                images.append((path, thumbnail))
+            except Exception as e:
+                self.signals.error.emit((e, path))
+        self.signals.result.emit(images)
+        self.signals.finished.emit()
 
 # ===========================================================================================
 class MainWindow(QMainWindow):
@@ -26,8 +54,10 @@ class MainWindow(QMainWindow):
         self.folder_path = ''
         self.images = []
         self.image_labels = []
+        self.image_cache = {}  # Cache for loaded images
         self.item_buttons_dict = {}    # Store ITEM buttons with item names as keys
         self.item_image_counts = {}    # Store image counts for each ITEM
+        self.threadpool = QThreadPool()
         self.init_ui()
 
     def init_ui(self):
@@ -49,10 +79,19 @@ class MainWindow(QMainWindow):
         self.middle_folder_line_edit = QLineEdit()
         self.middle_folder_line_edit.setPlaceholderText("Enter optional middle folder name")
         self.middle_folder_line_edit.returnPressed.connect(self.middle_folder_changed)
+
+        # Add the checkbox
+        self.use_gen_folder_checkbox = QCheckBox("Use 'gen' folder")
+        self.use_gen_folder_checkbox.setChecked(True)
+        self.use_gen_folder_checkbox.toggled.connect(self.use_gen_folder_toggled)
+
         self.browse_button = QPushButton("Browse")
         self.browse_button.clicked.connect(self.browse_project_folder)
+
+        # Add widgets to the layout
         self.top_layout.addWidget(self.project_line_edit)
         self.top_layout.addWidget(self.middle_folder_line_edit)
+        self.top_layout.addWidget(self.use_gen_folder_checkbox)
         self.top_layout.addWidget(self.browse_button)
         self.main_layout.addWidget(self.top_widget)
 
@@ -135,6 +174,19 @@ class MainWindow(QMainWindow):
             self.project_line_edit.setText(self.project_folder)
             self.load_categories()
 
+    def use_gen_folder_toggled(self, checked):
+        # Reload items to update image counts and button colors
+        if self.current_category:
+            category_path = os.path.join(self.project_folder, self.current_category)
+            self.load_items(category_path)
+            # If an item is currently selected, reload images
+            if self.current_item:
+                if self.middle_folder:
+                    item_path = os.path.join(category_path, self.middle_folder, self.current_item)
+                else:
+                    item_path = os.path.join(category_path, self.current_item)
+                self.load_images(item_path)
+
     def load_categories(self):
         # Clear existing CATEGORY buttons
         for i in reversed(range(self.category_layout.count() - 1)):  # Exclude the multiplier input
@@ -206,17 +258,22 @@ class MainWindow(QMainWindow):
             self.item_buttons.append(button)
             self.item_buttons_dict[item] = button  # Store in dict for easy access
 
-            # Get path to ITEM's 'gen' folder
+            # Get path to ITEM
             if self.middle_folder:
                 item_path = os.path.join(category_path, self.middle_folder, item)
             else:
                 item_path = os.path.join(category_path, item)
-            gen_folder_path = os.path.join(item_path, 'gen')
 
-            # Count images in 'gen' folder (excluding subfolders)
-            if os.path.exists(gen_folder_path):
-                num_images = len([f for f in os.listdir(gen_folder_path)
-                                  if os.path.isfile(os.path.join(gen_folder_path, f)) and f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+            # Determine image folder path
+            if self.use_gen_folder_checkbox.isChecked():
+                image_folder_path = os.path.join(item_path, 'gen')
+            else:
+                image_folder_path = item_path
+
+            # Count images in image folder (excluding subfolders)
+            if os.path.exists(image_folder_path):
+                num_images = len([f for f in os.listdir(image_folder_path)
+                                  if os.path.isfile(os.path.join(image_folder_path, f)) and f.lower().endswith(('.jpg', '.jpeg', '.png'))])
             else:
                 num_images = 0
 
@@ -237,18 +294,23 @@ class MainWindow(QMainWindow):
         self.load_images(item_path)
 
     def load_images(self, item_path):
-        # Look for 'gen' folder within ITEM
-        gen_folder_path = os.path.join(item_path, 'gen')
-        if not os.path.exists(gen_folder_path):
-            QMessageBox.warning(self, "Warning", f"'gen' folder not found in {item_path}")
-            return
+        # Determine the folder to load images from
+        if self.use_gen_folder_checkbox.isChecked():
+            # Use 'gen' folder within ITEM
+            image_folder_path = os.path.join(item_path, 'gen')
+            if not os.path.exists(image_folder_path):
+                QMessageBox.warning(self, "Warning", f"'gen' folder not found in {item_path}")
+                return
+        else:
+            # Use base ITEM folder
+            image_folder_path = item_path
 
-        self.folder_path = gen_folder_path
-        self.images = [file for file in os.listdir(gen_folder_path)
-                       if file.lower().endswith(('.jpg', '.jpeg', '.png')) and os.path.isfile(os.path.join(gen_folder_path, file))]
-        self.display_images()
+        self.folder_path = image_folder_path
+        self.images = [os.path.join(self.folder_path, file) for file in os.listdir(image_folder_path)
+                       if file.lower().endswith(('.jpg', '.jpeg', '.png')) and os.path.isfile(os.path.join(image_folder_path, file))]
+        self.display_images_async()
 
-    def display_images(self):
+    def display_images_async(self):
         # Clear existing images
         for i in reversed(range(self.grid_layout.count())):
             widget = self.grid_layout.itemAt(i).widget()
@@ -256,40 +318,57 @@ class MainWindow(QMainWindow):
                 widget.deleteLater()
 
         self.image_labels = []
+        self.image_cache.clear()
 
+        # Start asynchronous image loading
+        worker = ImageLoader(self.images, self.image_width, self.image_height)
+        worker.signals.result.connect(self.on_images_loaded)
+        self.threadpool.start(worker)
+
+    def on_images_loaded(self, images):
         num_columns = max(1, self.scroll_area.width() // (self.image_width + 20))  # Adjust as needed
 
-        for i, image_file in enumerate(self.images):
-            image_path = os.path.join(self.folder_path, image_file)
-            pixmap = QPixmap(image_path).scaled(self.image_width, self.image_height, Qt.KeepAspectRatio)
+        for i, (image_path, thumbnail) in enumerate(images):
+            pixmap = QPixmap.fromImage(thumbnail)
             label = QLabel()
             label.setPixmap(pixmap)
             label.setAlignment(Qt.AlignCenter)
+            label.setObjectName(image_path)
             self.grid_layout.addWidget(label, i // num_columns, i % num_columns)
             self.image_labels.append(label)
+            self.image_cache[image_path] = pixmap
 
-    def mousePressEvent(self, event: QMouseEvent):
-        if event.button() == Qt.LeftButton:
-            for i, label in enumerate(self.image_labels):
-                if label.underMouse():
-                    self.move_image_to_subfolder(i, '01')
-                    break
-        elif event.button() == Qt.RightButton:
-            for i, label in enumerate(self.image_labels):
-                if label.underMouse():
-                    self.move_image_to_subfolder(i, '02')
-                    break
+        # Install event filter to detect clicks on images
+        self.grid_widget.installEventFilter(self)
 
-    def move_image_to_subfolder(self, image_index, subfolder):
-        subfolder_path = os.path.join(self.folder_path, subfolder)
+    def eventFilter(self, source, event):
+        if event.type() == QEvent.MouseButtonPress:
+            if event.button() == Qt.LeftButton or event.button() == Qt.RightButton:
+                pos = event.pos()
+                widget = source.childAt(pos)
+                if isinstance(widget, QLabel):
+                    image_path = widget.objectName()
+                    if event.button() == Qt.LeftButton:
+                        self.move_image_to_subfolder(image_path, '01')
+                    elif event.button() == Qt.RightButton:
+                        self.move_image_to_subfolder(image_path, '02')
+                    return True
+        return super().eventFilter(source, event)
+
+    def move_image_to_subfolder(self, image_path, subfolder):
+        subfolder_path = os.path.join(os.path.dirname(image_path), subfolder)
         os.makedirs(subfolder_path, exist_ok=True)
-        image_name = self.images[image_index]
-        image_path = os.path.join(self.folder_path, image_name)
+        image_name = os.path.basename(image_path)
         new_path = os.path.join(subfolder_path, image_name)
         try:
             os.rename(image_path, new_path)
-            self.images.pop(image_index)
-            self.display_images()
+            self.images.remove(image_path)
+            # Remove the label from the grid layout
+            for i in range(self.grid_layout.count()):
+                widget = self.grid_layout.itemAt(i).widget()
+                if widget and widget.objectName() == image_path:
+                    widget.deleteLater()
+                    break
             # Update the ITEM button color
             self.update_item_button_color(self.current_item)
         except OSError as e:
@@ -298,16 +377,21 @@ class MainWindow(QMainWindow):
     def update_item_button_color(self, item_name):
         button = self.item_buttons_dict.get(item_name)
         if button:
-            # Get the path to the ITEM's 'gen' folder
+            # Get the path to the ITEM's image folder (either 'gen' or base folder)
             category_path = os.path.join(self.project_folder, self.current_category)
             if self.middle_folder:
                 item_path = os.path.join(category_path, self.middle_folder, item_name)
             else:
                 item_path = os.path.join(category_path, item_name)
-            gen_folder_path = os.path.join(item_path, 'gen')
-            if os.path.exists(gen_folder_path):
-                num_images = len([f for f in os.listdir(gen_folder_path)
-                                  if os.path.isfile(os.path.join(gen_folder_path, f)) and f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+
+            if self.use_gen_folder_checkbox.isChecked():
+                image_folder_path = os.path.join(item_path, 'gen')
+            else:
+                image_folder_path = item_path
+
+            if os.path.exists(image_folder_path):
+                num_images = len([f for f in os.listdir(image_folder_path)
+                                  if os.path.isfile(os.path.join(image_folder_path, f)) and f.lower().endswith(('.jpg', '.jpeg', '.png'))])
             else:
                 num_images = 0
             self.item_image_counts[item_name] = num_images
@@ -325,9 +409,6 @@ class MainWindow(QMainWindow):
         button.setStyleSheet(f"font-size: {font_size}px; color: {color};")
 
     def adjust_sizes(self):
-        window_width = self.width()
-        window_height = self.height()
-
         # Calculate multipliers from input fields
         category_multiplier = self.get_multiplier(self.category_multiplier_line_edit)
         item_multiplier = self.get_multiplier(self.item_multiplier_line_edit)
@@ -350,7 +431,7 @@ class MainWindow(QMainWindow):
                 # Calculate the width of the button text
                 font = widget.font()
                 fm = QFontMetrics(font)
-                text_width = fm.width(widget.text())
+                text_width = fm.horizontalAdvance(widget.text())
                 max_category_width = max(max_category_width, text_width)
 
         # Update ITEM buttons
@@ -361,7 +442,7 @@ class MainWindow(QMainWindow):
             # Calculate the width of the button text
             font = button.font()
             fm = QFontMetrics(font)
-            text_width = fm.width(button.text())
+            text_width = fm.horizontalAdvance(button.text())
             max_item_width = max(max_item_width, text_width)
 
         # Set widths for CATEGORY and ITEM panels
@@ -369,9 +450,9 @@ class MainWindow(QMainWindow):
         self.category_scroll_area.setFixedWidth(max_category_width + padding)
         self.item_scroll_area.setFixedWidth(max_item_width + padding)
 
-        # Redisplay images with new sizes
+        # Redisplay images with new sizes if images are loaded
         if self.images:
-            self.display_images()
+            self.display_images_async()
 
     def get_multiplier(self, line_edit):
         try:
