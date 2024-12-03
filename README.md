@@ -10,6 +10,7 @@ requires [auto1111 webui](https://github.com/AUTOMATIC1111/stable-diffusion-webu
 
 # install
 - install python 3.10
+- [download sd_project_tools](https://github.com/CorvaeOboro/sd_project_tools/archive/refs/heads/master.zip)
 - pip install -r requirements.txt
 
 # review tools
