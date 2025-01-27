@@ -29,7 +29,7 @@ class LoadImageFilePathOut:
                     {"image": ("STRING", {"default": r"C:/a/image.png [output]"})},
                 }
 
-    CATEGORY = "image"
+    CATEGORY = "OBORO"
 
     RETURN_TYPES = ("IMAGE", "MASK", "STRING", "STRING")
     RETURN_NAMES = ("image","MASK","file name","folder path")

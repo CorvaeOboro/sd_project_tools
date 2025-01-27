@@ -50,7 +50,7 @@ class SaveImageExtendedFolderPath:
 	RETURN_TYPES = ()
 	FUNCTION = 'save_images'
 	OUTPUT_NODE = True
-	CATEGORY = 'image'
+	CATEGORY = 'OBORO'
 
 	def get_subfolder_path(self, image_path, output_path):
 		image_path = Path(image_path).resolve()
