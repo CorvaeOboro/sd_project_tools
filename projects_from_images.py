@@ -1,4 +1,3 @@
-
 # IMAGES TO PROJECTS
 # for each image create folder matching name and move into it , add .project files , create 'selected' folder add image as selected
 import os
