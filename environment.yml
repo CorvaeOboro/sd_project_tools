@@ -1,0 +1,38 @@
+name: SD_PROJECT_TOOLS
+channels:
+  - defaults
+dependencies:
+  - python=3.10.11
+  - pip
+  - pip:
+    - PIL
+    - PyQt5
+    - argparse
+    - ast
+    - base64
+    - collections
+    - cv2
+    - datetime
+    - glob
+    - hashlib
+    - imageio
+    - io
+    - itertools
+    - json
+    - numpy
+    - os
+    - pathlib
+    - pyperclip
+    - qdarkstyle
+    - random
+    - re
+    - requests
+    - sdparsers
+    - shutil
+    - subprocess
+    - sys
+    - threading
+    - time
+    - tkinter
+    - torch
+    - tqdm
