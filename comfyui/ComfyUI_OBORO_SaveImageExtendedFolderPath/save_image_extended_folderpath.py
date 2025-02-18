@@ -14,7 +14,7 @@ original_locale = locale.setlocale(locale.LC_TIME, '')
 
 import folder_paths
 
-class SaveImageExtendedFolderPath:
+class OBOROSaveImageExtendedFolderPath:
 	def __init__(self):
 		self.output_dir = folder_paths.get_output_directory()
 		self.type = 'output'
@@ -92,7 +92,7 @@ class SaveImageExtendedFolderPath:
 			if key in keys_to_find:
 				found_values[key] = value
 			if isinstance(value, dict):
-				SaveImageExtendedFolderPath.find_keys_recursively(value, keys_to_find, found_values)
+				OBOROSaveImageExtendedFolderPath.find_keys_recursively(value, keys_to_find, found_values)
 
 	@staticmethod
 	def remove_file_extension(value):
@@ -119,17 +119,17 @@ class SaveImageExtendedFolderPath:
 				# Match both formats: lora_xx and lora_name_x
 				if re.match(r'lora(_name)?(_\d+)?', key):
 					if value.endswith('.safetensors'):
-						value = SaveImageExtendedFolderPath.remove_file_extension(value)
+						value = OBOROSaveImageExtendedFolderPath.remove_file_extension(value)
 					if value != 'None':
 						loras_string += f'{value}, '
 
 			if key in target_keys:
 				if (isinstance(value, str) and value.endswith('.safetensors')) or (isinstance(value, str) and value.endswith('.pt')):
-					value = SaveImageExtendedFolderPath.remove_file_extension(value)
+					value = OBOROSaveImageExtendedFolderPath.remove_file_extension(value)
 				found_values[key] = value
 
 			if isinstance(value, dict):
-				SaveImageExtendedFolderPath.find_parameter_values(target_keys, value, found_values)
+				OBOROSaveImageExtendedFolderPath.find_parameter_values(target_keys, value, found_values)
 
 		if 'loras' in target_keys and loras_string:
 			found_values['loras'] = loras_string.strip(', ')
@@ -145,7 +145,7 @@ class SaveImageExtendedFolderPath:
 
 		if prompt is not None and len(keys_to_extract) > 0:
 			found_values = {'resolution': resolution}
-			SaveImageExtendedFolderPath.find_keys_recursively(prompt, keys_to_extract, found_values)
+			OBOROSaveImageExtendedFolderPath.find_keys_recursively(prompt, keys_to_extract, found_values)
 			for key in keys_to_extract:
 				value = found_values.get(key)
 				if value is not None:
@@ -156,7 +156,7 @@ class SaveImageExtendedFolderPath:
 							pass
 
 					if (isinstance(value, str) and value.endswith('.safetensors')) or (isinstance(value, str) and value.endswith('.pt')):
-						value = SaveImageExtendedFolderPath.remove_file_extension(value)
+						value = OBOROSaveImageExtendedFolderPath.remove_file_extension(value)
 
 					custom_name += f'{delimiter_char}{value}'
 
@@ -173,7 +173,7 @@ class SaveImageExtendedFolderPath:
 			prompt_keys_to_save['custom_text'] = job_custom_text
 
 		if 'models' in save_job_data:
-			models = SaveImageExtendedFolderPath.find_parameter_values(['ckpt_name', 'loras', 'vae_name', 'model_name'], prompt)
+			models = OBOROSaveImageExtendedFolderPath.find_parameter_values(['ckpt_name', 'loras', 'vae_name', 'model_name'], prompt)
 			if models.get('ckpt_name'):
 				prompt_keys_to_save['checkpoint'] = models['ckpt_name']
 			if models.get('loras'):
@@ -186,7 +186,7 @@ class SaveImageExtendedFolderPath:
 
 
 		if 'sampler' in save_job_data:
-			prompt_keys_to_save['sampler_parameters'] = SaveImageExtendedFolderPath.find_parameter_values(['seed', 'steps', 'cfg', 'sampler_name', 'scheduler', 'denoise'], prompt)
+			prompt_keys_to_save['sampler_parameters'] = OBOROSaveImageExtendedFolderPath.find_parameter_values(['seed', 'steps', 'cfg', 'sampler_name', 'scheduler', 'denoise'], prompt)
 
 		if 'prompt' in save_job_data:
 			if positive_text_opt is not None:
@@ -290,8 +290,8 @@ class SaveImageExtendedFolderPath:
 
 		filename_keys_to_extract = [item.strip() for item in filename_keys.split(',')]
 		foldername_keys_to_extract = [item.strip() for item in foldername_keys.split(',')]
-		custom_filename = SaveImageExtendedFolderPath.generate_custom_name(filename_keys_to_extract, filename_prefix, delimiter_char, resolution, prompt)
-		custom_foldername = SaveImageExtendedFolderPath.generate_custom_name(foldername_keys_to_extract, foldername_prefix, delimiter_char, resolution, prompt)
+		custom_filename = OBOROSaveImageExtendedFolderPath.generate_custom_name(filename_keys_to_extract, filename_prefix, delimiter_char, resolution, prompt)
+		custom_foldername = OBOROSaveImageExtendedFolderPath.generate_custom_name(foldername_keys_to_extract, foldername_prefix, delimiter_char, resolution, prompt)
 		# set folder path to the input
 		custom_folderpath = folderpath_input
 		# if the folder path input is blank then use the default comfyui output dir 
@@ -328,14 +328,14 @@ class SaveImageExtendedFolderPath:
 				img.save(image_path, pnginfo=metadata, compress_level=4)
 
 				if save_job_data != 'disabled' and job_data_per_image =='enabled':
-					SaveImageExtendedFolderPath.save_job_to_json(save_job_data, prompt, filename_prefix, positive_text_opt, negative_text_opt, job_custom_text, resolution, output_path, f'{file.strip(".png")}.json')
+					OBOROSaveImageExtendedFolderPath.save_job_to_json(save_job_data, prompt, filename_prefix, positive_text_opt, negative_text_opt, job_custom_text, resolution, output_path, f'{file.strip(".png")}.json')
 
 				subfolder = self.get_subfolder_path(image_path, custom_folderpath)
 				results.append({ 'filename': file, 'subfolder': subfolder, 'type': self.type})
 				counter += 1
 
 			if save_job_data != 'disabled' and job_data_per_image =='disabled':
-				SaveImageExtendedFolderPath.save_job_to_json(save_job_data, prompt, filename_prefix, positive_text_opt, negative_text_opt, job_custom_text, resolution, output_path, 'jobs.json')
+				OBOROSaveImageExtendedFolderPath.save_job_to_json(save_job_data, prompt, filename_prefix, positive_text_opt, negative_text_opt, job_custom_text, resolution, output_path, 'jobs.json')
 
 		except OSError as e:
 			print(f'An error occurred while creating the subfolder or saving the image: {e}')
@@ -345,9 +345,9 @@ class SaveImageExtendedFolderPath:
 			return { 'ui': { 'images': results } }
 
 NODE_CLASS_MAPPINGS = {
-    'SaveImageExtendedFolderPath': SaveImageExtendedFolderPath,
+    'OBOROSaveImageExtendedFolderPath': OBOROSaveImageExtendedFolderPath,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    'SaveImageExtendedFolderPath': 'Save Image Extended FolderPath',
+    'OBOROSaveImageExtendedFolderPath': 'Save Image Extended FolderPath',
 }

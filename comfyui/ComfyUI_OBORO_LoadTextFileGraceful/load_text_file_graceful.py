@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'co
 # Store the original locale for consistency with other operations
 original_locale = locale.setlocale(locale.LC_TIME, '')
 
-class LoadTextFileGraceful:
+class OBOROLoadTextFileGraceful:
     """
     A ComfyUI node that loads text from a file. 
     Non-comment lines (lines that do not start with '#') are:
@@ -91,10 +91,10 @@ class LoadTextFileGraceful:
 
 # ComfyUI needs to know which classes to load when scanning your .py file
 NODE_CLASS_MAPPINGS = {
-    "LoadTextFileGraceful": LoadTextFileGraceful,
+    "OBOROLoadTextFileGraceful": OBOROLoadTextFileGraceful,
 }
 
 # (Optional) Provide a human-readable display name for your node
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "LoadTextFileGraceful": "Load Text File Graceful",
+    "OBOROLoadTextFileGraceful": "Load Text File Graceful",
 }

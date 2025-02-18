@@ -22,7 +22,7 @@ from typing import Iterable
 from PIL import Image, ImageOps
 import numpy as np
 
-class LoadImageFilePathOut:
+class OBOROLoadImageFilePathOut:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
@@ -35,7 +35,7 @@ class LoadImageFilePathOut:
     RETURN_NAMES = ("image","MASK","file name","folder path")
     FUNCTION = "load_image"
     def load_image(self, image):
-        image_path = LoadImageFilePathOut._resolve_path(image)
+        image_path = OBOROLoadImageFilePathOut._resolve_path(image)
 
         i = Image.open(image_path)
         i = ImageOps.exif_transpose(i)
@@ -59,7 +59,7 @@ class LoadImageFilePathOut:
 
     @classmethod
     def IS_CHANGED(s, image):
-        image_path = LoadImageFilePathOut._resolve_path(image)
+        image_path = OBOROLoadImageFilePathOut._resolve_path(image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
@@ -71,7 +71,7 @@ class LoadImageFilePathOut:
         if image is None:
             return True
 
-        image_path = LoadImageFilePathOut._resolve_path(image)
+        image_path = OBOROLoadImageFilePathOut._resolve_path(image)
         if not image_path.exists():
             return "Invalid image path: {}".format(image_path)
 
@@ -84,9 +84,9 @@ def get_file_name_without_extension(file_path):
     return file_name
 
 NODE_CLASS_MAPPINGS = {
-    'LoadImageFilePathOut': LoadImageFilePathOut,
+    'OBOROLoadImageFilePathOut': OBOROLoadImageFilePathOut,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    'LoadImageFilePathOut': 'Load Image FilePath Out',
+    'OBOROLoadImageFilePathOut': 'Load Image w FilePath Out',
 }

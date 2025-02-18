@@ -7,7 +7,7 @@ from typing import Dict
 # Insert your ComfyUI path so Comfy can find its necessary modules, if needed:
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'comfy'))
 
-class LoraRandomizerNode:
+class OBOROLoraRandomizerNode:
     """
     A ComfyUI node that parses LoRA strings, randomizes their strengths, highlights a single LoRA, or passes through unmodified.
 
@@ -139,10 +139,10 @@ class LoraRandomizerNode:
 
 # ComfyUI needs to know which classes to load when scanning your .py file
 NODE_CLASS_MAPPINGS = {
-    "LoraRandomizerNode": LoraRandomizerNode,
+    "OBOROLoraRandomizerNode": OBOROLoraRandomizerNode,
 }
 
 # (Optional) Provide a human-readable display name for your node
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "LoraRandomizerNode": "LoRA Randomizer Node",
+    "OBOROLoraRandomizerNode": "LoRA Randomize Strength on Text",
 }
