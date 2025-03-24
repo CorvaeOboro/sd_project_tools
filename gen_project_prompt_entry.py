@@ -1,13 +1,68 @@
+"""
+Asset DataEntry UI for Stable Diffusion Project Management
+
+A GUI tool for managing and organizing projects with multiple Stable Diffusion prompt files.
+a visual interface for prompt entry and review.
+
+Features:
+    - Visual dashboard displaying asset PSD preview and their associated prompts in prompt subfolder
+    - prompt .md text files for :
+        * SDXL positive negative , SD1.5 positive negative  Flux , Video  , Florence2 generated 
+    - Support for both flat and hierarchical file organization
+
+Usage:
+    1. Launch the tool and select your project folder
+    2. Choose your preferred file organization (flat or subfolder)
+    3. Edit prompts directly in the UI
+    4. Changes are automatically saved
+
+TypeA Project Structure psds are in main folder :
+    project_folder/
+    ├── example.psd                 # Source PSD file
+    ├── example/                    #  Asset subfolder
+    │   ├── prompt/                 # Prompt files subfolder
+    │   │   ├── prompt_sdxl.md     # SDXL positive prompts
+    │   │   ├── prompt_sdxl_negative.md     # SDXL negative prompts
+    │   │   ├── prompt_sd15.md     # SD1.5 positive prompts
+    │   │   ├── prompt_sd15_negative.md     # SD1.5 negative prompts
+    │   │   ├── prompt_flux.md         # Additional notes/metadata
+    │   │   ├── prompt_video.md        # Video prompts
+    │   │   └── prompt_florence.md     # Florence generated prompts
+    ├── exampleB.psd                 # Source PSD file
+    ├── exampleB/                    # Asset subfolder
+    │   ├── prompt/                 # Prompt files subfolder
+    │   │   ├── prompt_sdxl.md     # SDXL positive prompts
+
+TypeB Project Structure psds are in subfolders:
+    project_folder/
+    ├── example/                    #  Asset subfolder
+    │   ├── example.psd            # Source PSD file
+    │   ├── prompt/                # Prompt files subfolder
+    │   │   ├── prompt_sdxl.md     # SDXL positive prompts
+    ├── exampleB/                    #  Asset subfolder
+    │   ├── exampleB.psd            # Source PSD file
+    │   ├── prompt/                # Prompt files subfolder
+    │   │   ├── prompt_sdxl.md     # SDXL positive prompts
+
+FEATURES TODO :
+- [ ] clicking on an image entry should expand the text entry fields for it making them take up the full height
+- [ ] folders and settings per that folder such as if the psd are in root folder are saved as a local json for quick load
+- [ ] use florence and other llms to add to and modify a prompt toward a style guide and examples fitted for the 
+- [ ] separate the UI into its own class for modularity 
+- [ ] add feature to copy a field but make its activation subtle like double clicking the name
+- [ ] on the right side of the ui we can place a vertical text entry field showing the currently "active" text entry field , displaying the current asset preview and the lable for the currently active text entry field.
+"""
+
 import os
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
 
-class AssetDashboard(tk.Tk):
+class AssetDataEntryUI(tk.Tk):
     def __init__(self, default_folder=""):
         super().__init__()
-        self.title("Asset Dashboard")
-        self.geometry("1400x800")  # widened for extra columns
+        self.title("Asset Data Entry")
+        self.geometry("1600x800")  # widened for extra columns
 
         # Dark (black) mode styles
         self.configure(bg="black")
@@ -73,6 +128,16 @@ class AssetDashboard(tk.Tk):
         )
         filter_check.pack(side=tk.LEFT, padx=8)
 
+        # Checkbox for project structure type
+        self.psds_in_root_var = tk.BooleanVar(value=True)
+        structure_check = ttk.Checkbutton(
+            control_frame,
+            text="PSDs in root folder (vs. in subfolders)",
+            variable=self.psds_in_root_var,
+            command=self.scan_folder
+        )
+        structure_check.pack(side=tk.LEFT, padx=8)
+
         # -------------------------------
         # Header row (non-scrollable)
         # -------------------------------
@@ -80,26 +145,31 @@ class AssetDashboard(tk.Tk):
         header_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
 
         # Create labels for each column (smaller widths, tighter spacing)
-        hdr_preview = ttk.Label(header_frame, text="Preview", anchor="center", width=10)
-        hdr_preview.grid(row=0, column=0, padx=3)
+        # Empty space for image column
+        hdr_preview = ttk.Label(header_frame, text="", anchor="center", width=20)
+        hdr_preview.grid(row=0, column=0, padx=(5,10))
 
-        hdr_filename = ttk.Label(header_frame, text="Filename", anchor="center", width=14)
-        hdr_filename.grid(row=0, column=1, padx=3)
+        # Headers for text fields
+        hdr_sdxl_pos = ttk.Label(header_frame, text="SDXL Positive", anchor="center", width=25)
+        hdr_sdxl_pos.grid(row=0, column=1, padx=(0,30))
 
-        hdr_sdxl_pos = ttk.Label(header_frame, text="SDXL Pos", anchor="center", width=16)
-        hdr_sdxl_pos.grid(row=0, column=2, padx=3)
+        hdr_sdxl_neg = ttk.Label(header_frame, text="SDXL Negative", anchor="center", width=25)
+        hdr_sdxl_neg.grid(row=0, column=2, padx=(0,30))
 
-        hdr_sdxl_neg = ttk.Label(header_frame, text="SDXL Neg", anchor="center", width=16)
-        hdr_sdxl_neg.grid(row=0, column=3, padx=3)
+        hdr_sd15_pos = ttk.Label(header_frame, text="SD15 Positive", anchor="center", width=25)
+        hdr_sd15_pos.grid(row=0, column=3, padx=(0,30))
 
-        hdr_sd15_pos = ttk.Label(header_frame, text="SD15 Pos", anchor="center", width=16)
-        hdr_sd15_pos.grid(row=0, column=4, padx=3)
+        hdr_sd15_neg = ttk.Label(header_frame, text="SD15 Negative", anchor="center", width=25)
+        hdr_sd15_neg.grid(row=0, column=4, padx=(0,30))
 
-        hdr_sd15_neg = ttk.Label(header_frame, text="SD15 Neg", anchor="center", width=16)
-        hdr_sd15_neg.grid(row=0, column=5, padx=3)
+        hdr_flux = ttk.Label(header_frame, text="Flux", anchor="center", width=25)
+        hdr_flux.grid(row=0, column=5, padx=(0,30))
 
-        hdr_flux = ttk.Label(header_frame, text="Flux", anchor="center", width=16)
-        hdr_flux.grid(row=0, column=6, padx=3)
+        hdr_video = ttk.Label(header_frame, text="Video", anchor="center", width=25)
+        hdr_video.grid(row=0, column=6, padx=(0,30))
+
+        hdr_florence = ttk.Label(header_frame, text="Florence", anchor="center", width=25)
+        hdr_florence.grid(row=0, column=7, padx=(0,30))
 
         # -------------------------------
         # Scrollable area
@@ -195,22 +265,29 @@ class AssetDashboard(tk.Tk):
         Given a PSD file name (e.g., 'example.psd'), create subfolder and MD files if missing.
         """
         base_name = os.path.splitext(psd_file)[0]
-        folder_path = os.path.join(directory, base_name)
+        subfolder_path = os.path.join(directory, base_name)
         
-        # Create the directory if it doesn't exist
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
+        # Create the subfolder if it doesn't exist
+        if not os.path.exists(subfolder_path):
+            os.makedirs(subfolder_path)
+        
+        # Create prompt subfolder
+        prompt_folder = os.path.join(subfolder_path, "prompt")
+        if not os.path.exists(prompt_folder):
+            os.makedirs(prompt_folder)
         
         md_files = [
             "prompt_sd15.md",
             "prompt_sd15_negative.md",
             "prompt_sdxl.md",
             "prompt_sdxl_negative.md",
-            "prompt_flux.md"
+            "prompt_flux.md",
+            "prompt_video.md",
+            "prompt_florence.md"
         ]
         
         for md_file in md_files:
-            md_path = os.path.join(folder_path, md_file)
+            md_path = os.path.join(prompt_folder, md_file)
             if not os.path.exists(md_path):
                 with open(md_path, 'w', encoding='utf-8') as f:
                     pass  # blank file
@@ -221,77 +298,121 @@ class AssetDashboard(tk.Tk):
 
     def scan_folder(self):
         """Scan the input folder for .psd files and gather relevant data."""
-        self.assets_data.clear()
-        if not os.path.isdir(self.input_folder):
+        self.assets_data = []
+        
+        if not self.input_folder or not os.path.isdir(self.input_folder):
             return
 
-        psd_files = [f for f in os.listdir(self.input_folder) if f.lower().endswith(".psd")]
-        psd_files.sort()
+        if self.psds_in_root_var.get():  # TypeA: PSDs in root
+            psd_files = [f for f in os.listdir(self.input_folder) if f.lower().endswith(".psd")]
+            psd_files.sort()
 
-        for psd in psd_files:
-            base_name = os.path.splitext(psd)[0]
-            psd_path = os.path.join(self.input_folder, psd)
-            png_path = os.path.join(self.input_folder, base_name + ".png")
-            if not os.path.isfile(png_path):
-                png_path = None
+            for psd in psd_files:
+                base_name = os.path.splitext(psd)[0]
+                psd_path = os.path.join(self.input_folder, psd)
+                png_path = os.path.join(self.input_folder, base_name + ".png")
+                if not os.path.isfile(png_path):
+                    png_path = None
 
-            subfolder_path = os.path.join(self.input_folder, base_name)
-            if not os.path.isdir(subfolder_path):
-                continue
+                subfolder_path = os.path.join(self.input_folder, base_name)
+                if not os.path.isdir(subfolder_path):
+                    continue
 
-            # Identify potential .md files
-            prompt_sdxl_path = os.path.join(subfolder_path, "prompt_sdxl.md")
-            prompt_sdxl_neg_path = os.path.join(subfolder_path, "prompt_sdxl_negative.md")
-            prompt_sd15_path = os.path.join(subfolder_path, "prompt_sd15.md")
-            prompt_sd15_neg_path = os.path.join(subfolder_path, "prompt_sd15_negative.md")
-            prompt_flux_path = os.path.join(subfolder_path, "prompt_flux.md")
+                self._add_asset_data(base_name, psd_path, png_path, subfolder_path)
 
-            # Read existing content
-            prompt_sdxl_content = ""
-            if os.path.isfile(prompt_sdxl_path):
-                with open(prompt_sdxl_path, "r", encoding="utf-8") as f:
-                    prompt_sdxl_content = f.read()
-            
-            prompt_sdxl_neg_content = ""
-            if os.path.isfile(prompt_sdxl_neg_path):
-                with open(prompt_sdxl_neg_path, "r", encoding="utf-8") as f:
-                    prompt_sdxl_neg_content = f.read()
+        else:  # TypeB: PSDs in subfolders
+            subfolders = [f for f in os.listdir(self.input_folder) if os.path.isdir(os.path.join(self.input_folder, f))]
+            subfolders.sort()
 
-            prompt_sd15_content = ""
-            if os.path.isfile(prompt_sd15_path):
-                with open(prompt_sd15_path, "r", encoding="utf-8") as f:
-                    prompt_sd15_content = f.read()
-            
-            prompt_sd15_neg_content = ""
-            if os.path.isfile(prompt_sd15_neg_path):
-                with open(prompt_sd15_neg_path, "r", encoding="utf-8") as f:
-                    prompt_sd15_neg_content = f.read()
+            for subfolder in subfolders:
+                subfolder_path = os.path.join(self.input_folder, subfolder)
+                psd_files = [f for f in os.listdir(subfolder_path) if f.lower().endswith(".psd")]
+                
+                for psd in psd_files:
+                    base_name = os.path.splitext(psd)[0]
+                    psd_path = os.path.join(subfolder_path, psd)
+                    png_path = os.path.join(subfolder_path, base_name + ".png")
+                    if not os.path.isfile(png_path):
+                        png_path = None
 
-            prompt_flux_content = ""
-            if os.path.isfile(prompt_flux_path):
-                with open(prompt_flux_path, "r", encoding="utf-8") as f:
-                    prompt_flux_content = f.read()
+                    self._add_asset_data(base_name, psd_path, png_path, subfolder_path)
 
-            self.assets_data.append({
-                "base_name": base_name,
-                "psd_path": psd_path,
-                "png_path": png_path,
-                "subfolder_path": subfolder_path,
+        self.refresh_assets_display()
 
-                # File path references
-                "prompt_sdxl_path": prompt_sdxl_path,
-                "prompt_sdxl_neg_path": prompt_sdxl_neg_path,
-                "prompt_sd15_path": prompt_sd15_path,
-                "prompt_sd15_neg_path": prompt_sd15_neg_path,
-                "prompt_flux_path": prompt_flux_path,
+    def _add_asset_data(self, base_name, psd_path, png_path, subfolder_path):
+        """Helper method to add asset data to self.assets_data"""
+        # Create path to prompt folder
+        prompt_folder = os.path.join(subfolder_path, "prompt")
+        
+        # Identify potential .md files
+        prompt_sdxl_path = os.path.join(prompt_folder, "prompt_sdxl.md")
+        prompt_sdxl_neg_path = os.path.join(prompt_folder, "prompt_sdxl_negative.md")
+        prompt_sd15_path = os.path.join(prompt_folder, "prompt_sd15.md")
+        prompt_sd15_neg_path = os.path.join(prompt_folder, "prompt_sd15_negative.md")
+        prompt_flux_path = os.path.join(prompt_folder, "prompt_flux.md")
+        prompt_video_path = os.path.join(prompt_folder, "prompt_video.md")
+        prompt_florence_path = os.path.join(prompt_folder, "prompt_florence.md")
 
-                # File content
-                "prompt_sdxl_content": prompt_sdxl_content,
-                "prompt_sdxl_neg_content": prompt_sdxl_neg_content,
-                "prompt_sd15_content": prompt_sd15_content,
-                "prompt_sd15_neg_content": prompt_sd15_neg_content,
-                "prompt_flux_content": prompt_flux_content,
-            })
+        # Read existing content
+        prompt_sdxl_content = ""
+        if os.path.isfile(prompt_sdxl_path):
+            with open(prompt_sdxl_path, "r", encoding="utf-8") as f:
+                prompt_sdxl_content = f.read()
+        
+        prompt_sdxl_neg_content = ""
+        if os.path.isfile(prompt_sdxl_neg_path):
+            with open(prompt_sdxl_neg_path, "r", encoding="utf-8") as f:
+                prompt_sdxl_neg_content = f.read()
+
+        prompt_sd15_content = ""
+        if os.path.isfile(prompt_sd15_path):
+            with open(prompt_sd15_path, "r", encoding="utf-8") as f:
+                prompt_sd15_content = f.read()
+        
+        prompt_sd15_neg_content = ""
+        if os.path.isfile(prompt_sd15_neg_path):
+            with open(prompt_sd15_neg_path, "r", encoding="utf-8") as f:
+                prompt_sd15_neg_content = f.read()
+
+        prompt_flux_content = ""
+        if os.path.isfile(prompt_flux_path):
+            with open(prompt_flux_path, "r", encoding="utf-8") as f:
+                prompt_flux_content = f.read()
+
+        prompt_video_content = ""
+        if os.path.isfile(prompt_video_path):
+            with open(prompt_video_path, "r", encoding="utf-8") as f:
+                prompt_video_content = f.read()
+
+        prompt_florence_content = ""
+        if os.path.isfile(prompt_florence_path):
+            with open(prompt_florence_path, "r", encoding="utf-8") as f:
+                prompt_florence_content = f.read()
+
+        self.assets_data.append({
+            "base_name": base_name,
+            "psd_path": psd_path,
+            "png_path": png_path,
+            "subfolder_path": subfolder_path,
+
+            # File path references
+            "prompt_sdxl_path": prompt_sdxl_path,
+            "prompt_sdxl_neg_path": prompt_sdxl_neg_path,
+            "prompt_sd15_path": prompt_sd15_path,
+            "prompt_sd15_neg_path": prompt_sd15_neg_path,
+            "prompt_flux_path": prompt_flux_path,
+            "prompt_video_path": prompt_video_path,
+            "prompt_florence_path": prompt_florence_path,
+
+            # File content
+            "prompt_sdxl_content": prompt_sdxl_content,
+            "prompt_sdxl_neg_content": prompt_sdxl_neg_content,
+            "prompt_sd15_content": prompt_sd15_content,
+            "prompt_sd15_neg_content": prompt_sd15_neg_content,
+            "prompt_flux_content": prompt_flux_content,
+            "prompt_video_content": prompt_video_content,
+            "prompt_florence_content": prompt_florence_content,
+        })
 
     def refresh_assets_display(self):
         """Clear and rebuild the list of assets in the scrollable frame."""
@@ -308,71 +429,99 @@ class AssetDashboard(tk.Tk):
                     asset["prompt_sdxl_neg_content"].strip() or
                     asset["prompt_sd15_content"].strip() or
                     asset["prompt_sd15_neg_content"].strip() or
-                    asset["prompt_flux_content"].strip()):
+                    asset["prompt_flux_content"].strip() or
+                    asset["prompt_video_content"].strip() or
+                    asset["prompt_florence_content"].strip()):
                     continue
             
             row_frame = ttk.Frame(self.items_frame)
-            row_frame.grid(row=row_index, column=0, sticky="ew", pady=3, padx=3)
+            row_frame.grid(row=row_index, column=0, sticky="ew", pady=2, padx=5)
             row_index += 1
 
-            # Thumbnail
+            # Base name label at top
+            base_name_label = ttk.Label(row_frame, text=asset["base_name"], anchor="w", font=("TkDefaultFont", 10, "bold"))
+            base_name_label.grid(row=0, column=0, columnspan=8, sticky="w", padx=5, pady=(2,0))
+
+            # Create a frame for the image and content side by side
+            content_container = ttk.Frame(row_frame)
+            content_container.grid(row=1, column=0, columnspan=8, sticky="ew", pady=2)
+
+            # Thumbnail on the left
             if asset["png_path"] and os.path.isfile(asset["png_path"]):
                 try:
                     img = Image.open(asset["png_path"])
                     img.thumbnail((128, 128), Image.LANCZOS)
                     photo = ImageTk.PhotoImage(img)
-                    label_img = ttk.Label(row_frame, image=photo)
+                    label_img = ttk.Label(content_container, image=photo)
                     label_img.image = photo  # keep reference
-                    label_img.grid(row=0, column=0, rowspan=2, padx=3, pady=3)
+                    label_img.grid(row=0, column=0, padx=(5,10), pady=2, sticky="nw")
                 except Exception as e:
                     print(f"Error loading image {asset['png_path']}: {e}")
 
-            # PSD filename
-            label_filename = ttk.Label(row_frame, text=asset["base_name"])
-            label_filename.grid(row=0, column=1, sticky="w", padx=3)
+            # Content frame for text fields to the right of the image
+            content_frame = ttk.Frame(content_container)
+            content_frame.grid(row=0, column=1, sticky="ew")
 
-            # SDXL Positive prompt
-            prompt_text_sdxl = tk.Text(row_frame, width=25, height=6, bg="#3c3c3c", fg="white")
+            # SDXL Positive prompt - slight green tint
+            prompt_text_sdxl = tk.Text(content_frame, width=25, height=6, bg="#2a332a", fg="white")
             prompt_text_sdxl.insert("1.0", asset["prompt_sdxl_content"])
-            prompt_text_sdxl.grid(row=1, column=1, sticky="w", padx=3, pady=3)
+            prompt_text_sdxl.grid(row=0, column=0, sticky="w", padx=0, pady=1)
             prompt_text_sdxl.bind("<KeyRelease>", 
                 lambda e, a=asset, tw=prompt_text_sdxl, key="sdxl_pos": 
                     self.on_text_change(a, tw, key)
             )
 
-            # SDXL Negative prompt
-            neg_prompt_text_sdxl = tk.Text(row_frame, width=25, height=6, bg="#3c3c3c", fg="white")
+            # SDXL Negative prompt - slight red tint
+            neg_prompt_text_sdxl = tk.Text(content_frame, width=25, height=6, bg="#332a2a", fg="white")
             neg_prompt_text_sdxl.insert("1.0", asset["prompt_sdxl_neg_content"])
-            neg_prompt_text_sdxl.grid(row=1, column=2, sticky="w", padx=3, pady=3)
+            neg_prompt_text_sdxl.grid(row=0, column=1, sticky="w", padx=0, pady=1)
             neg_prompt_text_sdxl.bind("<KeyRelease>",
                 lambda e, a=asset, tw=neg_prompt_text_sdxl, key="sdxl_neg":
                     self.on_text_change(a, tw, key)
             )
 
-            # SD15 Positive prompt
-            prompt_text_sd15 = tk.Text(row_frame, width=25, height=6, bg="#3c3c3c", fg="white")
+            # SD15 Positive prompt - slight green tint
+            prompt_text_sd15 = tk.Text(content_frame, width=25, height=6, bg="#2a332a", fg="white")
             prompt_text_sd15.insert("1.0", asset["prompt_sd15_content"])
-            prompt_text_sd15.grid(row=1, column=3, sticky="w", padx=3, pady=3)
+            prompt_text_sd15.grid(row=0, column=2, sticky="w", padx=0, pady=1)
             prompt_text_sd15.bind("<KeyRelease>",
                 lambda e, a=asset, tw=prompt_text_sd15, key="sd15_pos":
                     self.on_text_change(a, tw, key)
             )
 
-            # SD15 Negative prompt
-            neg_prompt_text_sd15 = tk.Text(row_frame, width=25, height=6, bg="#3c3c3c", fg="white")
+            # SD15 Negative prompt - slight red tint
+            neg_prompt_text_sd15 = tk.Text(content_frame, width=25, height=6, bg="#332a2a", fg="white")
             neg_prompt_text_sd15.insert("1.0", asset["prompt_sd15_neg_content"])
-            neg_prompt_text_sd15.grid(row=1, column=4, sticky="w", padx=3, pady=3)
+            neg_prompt_text_sd15.grid(row=0, column=3, sticky="w", padx=0, pady=1)
             neg_prompt_text_sd15.bind("<KeyRelease>",
                 lambda e, a=asset, tw=neg_prompt_text_sd15, key="sd15_neg":
                     self.on_text_change(a, tw, key)
             )
 
-            # Flux prompt
-            prompt_text_flux = tk.Text(row_frame, width=25, height=6, bg="#3c3c3c", fg="white")
+            # Flux prompt - neutral dark gray
+            prompt_text_flux = tk.Text(content_frame, width=25, height=6, bg="#2d2d2d", fg="white")
             prompt_text_flux.insert("1.0", asset["prompt_flux_content"])
-            prompt_text_flux.grid(row=1, column=5, sticky="w", padx=3, pady=3)
+            prompt_text_flux.grid(row=0, column=4, sticky="w", padx=0, pady=1)
             prompt_text_flux.bind("<KeyRelease>",
                 lambda e, a=asset, tw=prompt_text_flux, key="flux":
+                    self.on_text_change(a, tw, key)
+            )
+
+            # Video prompt - neutral dark gray
+            prompt_text_video = tk.Text(content_frame, width=25, height=6, bg="#2d2d2d", fg="white")
+            prompt_text_video.insert("1.0", asset["prompt_video_content"])
+            prompt_text_video.grid(row=0, column=5, sticky="w", padx=0, pady=1)
+            prompt_text_video.bind("<KeyRelease>",
+                lambda e, a=asset, tw=prompt_text_video, key="video":
+                    self.on_text_change(a, tw, key)
+            )
+
+            # Florence prompt - neutral dark gray
+            prompt_text_florence = tk.Text(content_frame, width=25, height=6, bg="#2d2d2d", fg="white")
+            prompt_text_florence.insert("1.0", asset["prompt_florence_content"])
+            prompt_text_florence.grid(row=0, column=6, sticky="w", padx=0, pady=1)
+            prompt_text_florence.bind("<KeyRelease>",
+                lambda e, a=asset, tw=prompt_text_florence, key="florence":
                     self.on_text_change(a, tw, key)
             )
 
@@ -382,7 +531,7 @@ class AssetDashboard(tk.Tk):
     def on_text_change(self, asset, text_widget, md_key):
         """
         Handle changes in the text widgets and save automatically.
-        md_key is one of: 'sdxl_pos', 'sdxl_neg', 'sd15_pos', 'sd15_neg', 'flux'.
+        md_key is one of: 'sdxl_pos', 'sdxl_neg', 'sd15_pos', 'sd15_neg', 'flux', 'video', 'florence'.
         """
         new_content = text_widget.get("1.0", tk.END).rstrip("\n")
 
@@ -398,21 +547,28 @@ class AssetDashboard(tk.Tk):
         elif md_key == "sd15_neg":
             asset["prompt_sd15_neg_content"] = new_content
             file_path = asset["prompt_sd15_neg_path"]
-        else:  # "flux"
+        elif md_key == "flux":
             asset["prompt_flux_content"] = new_content
             file_path = asset["prompt_flux_path"]
+        elif md_key == "video":
+            asset["prompt_video_content"] = new_content
+            file_path = asset["prompt_video_path"]
+        elif md_key == "florence":
+            asset["prompt_florence_content"] = new_content
+            file_path = asset["prompt_florence_path"]
 
+        # Ensure the directory structure exists
         directory = os.path.dirname(file_path)
         if not os.path.isdir(directory):
             os.makedirs(directory, exist_ok=True)
 
+        # Save the prompt content
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(new_content)
 
-
 def main():
-    default_folder = r"/path/to/your/assets"
-    app = AssetDashboard(default_folder)
+    default_folder = r"/path/to/your/project"
+    app = AssetDataEntryUI(default_folder)
     app.mainloop()
 
 if __name__ == "__main__":
