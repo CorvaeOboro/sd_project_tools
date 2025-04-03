@@ -11,10 +11,11 @@ Features:
     - Support for both flat and hierarchical file organization
 
 Usage:
-    1. Launch the tool and select your project folder
+    1. Launch the tool , paste project folder path , 
     2. Choose your preferred file organization (flat or subfolder)
-    3. Edit prompts directly in the UI
-    4. Changes are automatically saved
+    3. click Load
+    4. Edit prompts directly in the UI
+    5. Changes are automatically saved
 
 TypeA Project Structure psds are in main folder :
     project_folder/
@@ -50,7 +51,6 @@ FEATURES TODO :
 - [ ] use florence and other llms to add to and modify a prompt toward a style guide and examples fitted for the 
 - [ ] separate the UI into its own class for modularity 
 - [ ] add feature to copy a field but make its activation subtle like double clicking the name
-- [ ] on the right side of the ui we can place a vertical text entry field showing the currently "active" text entry field , displaying the current asset preview and the lable for the currently active text entry field.
 """
 
 import os
@@ -94,6 +94,13 @@ class AssetDataEntryUI(tk.Tk):
 
         # A list to hold asset information
         self.assets_data = []
+
+        # Store the active text field info
+        self.active_text_widget = None
+        self.active_text_label = None
+        self.active_preview_image = None
+        self.active_asset = None
+        self.active_md_key = None
 
         # -------------------------------
         # Top control frame
@@ -172,10 +179,14 @@ class AssetDataEntryUI(tk.Tk):
         hdr_florence.grid(row=0, column=7, padx=(0,30))
 
         # -------------------------------
-        # Scrollable area
+        # Main content area with split view
         # -------------------------------
-        self.container_frame = ttk.Frame(self)
-        self.container_frame.pack(fill=tk.BOTH, expand=True)
+        main_content = ttk.Frame(self)
+        main_content.pack(fill=tk.BOTH, expand=True)
+
+        # Left side (scrollable list)
+        self.container_frame = ttk.Frame(main_content)
+        self.container_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         self.canvas = tk.Canvas(self.container_frame, bg="black", highlightthickness=0)
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -189,6 +200,26 @@ class AssetDataEntryUI(tk.Tk):
         self.canvas_window = self.canvas.create_window((0, 0), window=self.items_frame, anchor="nw")
 
         self.items_frame.bind("<Configure>", self.on_frame_configure)
+
+        # Right side panel for active text field
+        self.right_panel = ttk.Frame(main_content, style="Dark.TFrame")
+        self.right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, padx=10, pady=5)
+
+        # Preview image at top of right panel
+        self.active_preview_label = ttk.Label(self.right_panel, text="")
+        self.active_preview_label.pack(side=tk.TOP, pady=5)
+
+        # Label for active field
+        self.active_field_label = ttk.Label(self.right_panel, text="No field selected", font=("TkDefaultFont", 12, "bold"))
+        self.active_field_label.pack(side=tk.TOP, pady=5)
+
+        # Text widget for active field
+        self.active_text_area = tk.Text(self.right_panel, width=40, height=30, bg="#2d2d2d", fg="white")
+        self.active_text_area.pack(side=tk.TOP, fill=tk.BOTH, expand=True, pady=5)
+        self.active_text_area.bind("<KeyRelease>", self.on_active_text_change)
+
+        # Initially hide the right panel
+        self.right_panel.pack_forget()
 
         # -------------------------------
         # Mouse wheel binding
@@ -470,6 +501,10 @@ class AssetDataEntryUI(tk.Tk):
                 lambda e, a=asset, tw=prompt_text_sdxl, key="sdxl_pos": 
                     self.on_text_change(a, tw, key)
             )
+            prompt_text_sdxl.bind("<FocusIn>",
+                lambda e, tw=prompt_text_sdxl, label="SDXL Positive", a=asset, key="sdxl_pos":
+                    self.on_text_field_focus(tw, label, a, key)
+            )
 
             # SDXL Negative prompt - slight red tint
             neg_prompt_text_sdxl = tk.Text(content_frame, width=25, height=6, bg="#332a2a", fg="white")
@@ -478,6 +513,10 @@ class AssetDataEntryUI(tk.Tk):
             neg_prompt_text_sdxl.bind("<KeyRelease>",
                 lambda e, a=asset, tw=neg_prompt_text_sdxl, key="sdxl_neg":
                     self.on_text_change(a, tw, key)
+            )
+            neg_prompt_text_sdxl.bind("<FocusIn>",
+                lambda e, tw=neg_prompt_text_sdxl, label="SDXL Negative", a=asset, key="sdxl_neg":
+                    self.on_text_field_focus(tw, label, a, key)
             )
 
             # SD15 Positive prompt - slight green tint
@@ -488,6 +527,10 @@ class AssetDataEntryUI(tk.Tk):
                 lambda e, a=asset, tw=prompt_text_sd15, key="sd15_pos":
                     self.on_text_change(a, tw, key)
             )
+            prompt_text_sd15.bind("<FocusIn>",
+                lambda e, tw=prompt_text_sd15, label="SD15 Positive", a=asset, key="sd15_pos":
+                    self.on_text_field_focus(tw, label, a, key)
+            )
 
             # SD15 Negative prompt - slight red tint
             neg_prompt_text_sd15 = tk.Text(content_frame, width=25, height=6, bg="#332a2a", fg="white")
@@ -496,6 +539,10 @@ class AssetDataEntryUI(tk.Tk):
             neg_prompt_text_sd15.bind("<KeyRelease>",
                 lambda e, a=asset, tw=neg_prompt_text_sd15, key="sd15_neg":
                     self.on_text_change(a, tw, key)
+            )
+            neg_prompt_text_sd15.bind("<FocusIn>",
+                lambda e, tw=neg_prompt_text_sd15, label="SD15 Negative", a=asset, key="sd15_neg":
+                    self.on_text_field_focus(tw, label, a, key)
             )
 
             # Flux prompt - neutral dark gray
@@ -506,6 +553,10 @@ class AssetDataEntryUI(tk.Tk):
                 lambda e, a=asset, tw=prompt_text_flux, key="flux":
                     self.on_text_change(a, tw, key)
             )
+            prompt_text_flux.bind("<FocusIn>",
+                lambda e, tw=prompt_text_flux, label="Flux", a=asset, key="flux":
+                    self.on_text_field_focus(tw, label, a, key)
+            )
 
             # Video prompt - neutral dark gray
             prompt_text_video = tk.Text(content_frame, width=25, height=6, bg="#2d2d2d", fg="white")
@@ -515,6 +566,10 @@ class AssetDataEntryUI(tk.Tk):
                 lambda e, a=asset, tw=prompt_text_video, key="video":
                     self.on_text_change(a, tw, key)
             )
+            prompt_text_video.bind("<FocusIn>",
+                lambda e, tw=prompt_text_video, label="Video", a=asset, key="video":
+                    self.on_text_field_focus(tw, label, a, key)
+            )
 
             # Florence prompt - neutral dark gray
             prompt_text_florence = tk.Text(content_frame, width=25, height=6, bg="#2d2d2d", fg="white")
@@ -523,6 +578,10 @@ class AssetDataEntryUI(tk.Tk):
             prompt_text_florence.bind("<KeyRelease>",
                 lambda e, a=asset, tw=prompt_text_florence, key="florence":
                     self.on_text_change(a, tw, key)
+            )
+            prompt_text_florence.bind("<FocusIn>",
+                lambda e, tw=prompt_text_florence, label="Florence", a=asset, key="florence":
+                    self.on_text_field_focus(tw, label, a, key)
             )
 
         self.items_frame.update_idletasks()
@@ -565,6 +624,49 @@ class AssetDataEntryUI(tk.Tk):
         # Save the prompt content
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(new_content)
+
+    def on_text_field_focus(self, text_widget, label_text, asset, md_key):
+        """Handle when a text field gains focus"""
+        # Update active field tracking
+        self.active_text_widget = text_widget
+        self.active_text_label = label_text
+        self.active_asset = asset
+        self.active_md_key = md_key
+
+        # Show the right panel
+        self.right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, padx=10, pady=5)
+        
+        # Update the label
+        self.active_field_label.config(text=label_text)
+        
+        # Update the content
+        self.active_text_area.delete("1.0", tk.END)
+        self.active_text_area.insert("1.0", text_widget.get("1.0", tk.END).rstrip("\n"))
+
+        # Update preview image
+        if asset["png_path"] and os.path.isfile(asset["png_path"]):
+            try:
+                img = Image.open(asset["png_path"])
+                img.thumbnail((256, 256), Image.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                self.active_preview_label.config(image=photo)
+                self.active_preview_label.image = photo
+            except Exception as e:
+                print(f"Error loading preview image: {e}")
+                self.active_preview_label.config(image="")
+        else:
+            self.active_preview_label.config(image="")
+
+    def on_active_text_change(self, event):
+        """Handle changes in the active text area"""
+        if self.active_text_widget and self.active_asset:
+            # Update both text widgets
+            new_content = self.active_text_area.get("1.0", tk.END).rstrip("\n")
+            self.active_text_widget.delete("1.0", tk.END)
+            self.active_text_widget.insert("1.0", new_content)
+            
+            # Save the changes
+            self.on_text_change(self.active_asset, self.active_text_widget, self.active_md_key)
 
 def main():
     default_folder = r"/path/to/your/project"
