@@ -55,117 +55,136 @@ def get_model_info_by_hash(hash_value):
         print(f"Request error while querying Civitai for hash {hash_value}: {e}")
         return None
 
+def get_extension_from_url(url):
+    """Extract the file extension from URL, considering query parameters."""
+    path = url.split('?')[0]  # Remove query parameters
+    ext = os.path.splitext(path)[1].lower()
+    return ext if ext else None
+
+def get_extension_from_content_type(content_type):
+    """Map content-type to file extension."""
+    content_type = content_type.lower()
+    content_type_map = {
+        'image/jpeg': '.jpg',
+        'image/jpg': '.jpg',
+        'image/png': '.png',
+        'image/gif': '.gif',
+        'image/webp': '.webp',
+        'video/mp4': '.mp4',
+        'video/webm': '.webm'
+    }
+    return content_type_map.get(content_type.split(';')[0])
+
+def is_valid_image_header(filepath):
+    """Check if the file starts with known image format headers."""
+    headers = {
+        b'\xFF\xD8\xFF': '.jpg',  # JPEG
+        b'\x89PNG\r\n\x1a\n': '.png',  # PNG
+        b'GIF87a': '.gif',  # GIF87a
+        b'GIF89a': '.gif',  # GIF89a
+        b'RIFF': '.webp',  # WEBP
+        b'\x1A\x45\xDF\xA3': '.webm',  # WEBM
+        b'\x00\x00\x00': '.mp4'  # MP4 (simplified check)
+    }
+    
+    try:
+        with open(filepath, 'rb') as f:
+            # Read enough bytes for the longest header
+            header = f.read(8)
+            
+            for magic, ext in headers.items():
+                if header.startswith(magic):
+                    return ext
+    except Exception as e:
+        print(f"Error checking file header: {e}")
+    
+    return None
+
 def download_image(url, save_path):
-    """Download an image from a URL."""
+    """Download an image from a URL and determine its correct extension."""
     headers = {'User-Agent': 'Mozilla/5.0'}
+    temp_path = save_path + '.tmp'  # Define temp_path at the start
+    
     try:
         with requests.get(url, headers=headers, stream=True) as r:
             r.raise_for_status()
+            
+            # Try to determine the correct extension
+            content_type = r.headers.get('content-type', '').lower()
+            url_ext = get_extension_from_url(url)
+            content_type_ext = get_extension_from_content_type(content_type)
+            
+            # Save the file with a temporary extension
             total_size = int(r.headers.get('content-length', 0))
-            with open(save_path, 'wb') as f, tqdm(
+            
+            with open(temp_path, 'wb') as f, tqdm(
                 total=total_size, unit='B', unit_scale=True,
-                desc=f"Downloading {os.path.basename(save_path)}", leave=False
+                desc=f"Downloading preview", leave=False
             ) as pbar:
                 for chunk in r.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
                         pbar.update(len(chunk))
+            
+            # Check the file header
+            header_ext = is_valid_image_header(temp_path)
+            
+            # Determine final extension (prioritize header check > content-type > url extension)
+            final_ext = header_ext or content_type_ext or url_ext or '.png'
+            final_path = os.path.splitext(save_path)[0] + final_ext
+            
+            # Remove any existing file with the same name
+            if os.path.exists(final_path):
+                os.remove(final_path)
+            
+            # Rename to final path
+            os.rename(temp_path, final_path)
+            print(f"Saved preview as {os.path.basename(final_path)}")
+            return final_path
+            
     except requests.RequestException as e:
-        print(f"Request error while downloading image from {url}: {e}")
+        print(f"Error downloading from {url}: {e}")
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return None
+    except Exception as e:
+        print(f"Error processing download: {e}")
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return None
 
 def get_full_size_image_url(image_url, width):
     """Modify the image URL to request the full-size image."""
     return re.sub(r'/width=\d+/', f'/width={width}/', image_url)
 
-def is_valid_png(filepath):
-    """Check if the file is a valid PNG by comparing its header."""
-    try:
-        with open(filepath, 'rb') as f:
-            header = f.read(8)
-            return header == PNG_SIGNATURE
-    except Exception:
-        return False
-
-def is_valid_mp4(filepath):
-    """Check if the file is a valid MP4 by looking for the 'ftyp' box."""
-    try:
-        with open(filepath, 'rb') as f:
-            header = f.read(12)
-            if len(header) < 12:
-                return False
-            # In MP4, bytes 4-8 are usually 'ftyp'
-            return header[4:8] == b'ftyp'
-    except Exception:
-        return False
-
-def is_valid_webm(filepath):
-    """Check if the file is a valid WebM by checking for the EBML header."""
-    try:
-        with open(filepath, 'rb') as f:
-            header = f.read(4)
-            return header == b'\x1A\x45\xDF\xA3'
-    except Exception:
-        return False
-
-def validate_preview_file(base):
-    """
-    Validate the downloaded preview file.
-
-    If the file saved as <base>.preview.png is not a valid PNG, try renaming it
-    to <base>.preview.mp4 and test for a minimal MP4 signature. (You can also try
-    a WebM check if desired.)
-    """
-    png_file = base + '.preview.png'
-    if os.path.exists(png_file):
-        if is_valid_png(png_file):
-            print(f"Valid PNG preview image: {png_file}")
-            return
-        else:
-            print(f"Invalid PNG file detected: {png_file}. Attempting to rename and validate as MP4.")
-            mp4_file = base + '.preview.mp4'
-            if os.path.exists(mp4_file):
-                os.remove(mp4_file)
-            os.rename(png_file, mp4_file)
-            if is_valid_mp4(mp4_file):
-                print(f"Valid MP4 preview video: {mp4_file}")
-                return
-            else:
-                print("File is not a valid MP4. Attempting to rename and validate as WebM.")
-                webm_file = base + '.preview.webm'
-                if os.path.exists(webm_file):
-                    os.remove(webm_file)
-                os.rename(mp4_file, webm_file)
-                if is_valid_webm(webm_file):
-                    print(f"Valid WebM preview video: {webm_file}")
-                    return
-                else:
-                    print(f"Downloaded file is not a valid PNG, MP4, or WebM: {webm_file}")
-
 def get_preview_image(base, model_info, max_size_preview=False, skip_nsfw_preview=False):
-    """Download the preview image for a model and validate its format."""
-    preview_image_file = base + '.preview.png'
-    if os.path.exists(preview_image_file):
-        print(f"Preview image already exists: {preview_image_file}")
-        return
-    if 'images' in model_info:
-        for image_info in model_info['images']:
-            if skip_nsfw_preview and image_info.get('nsfw'):
-                print("Skipping NSFW image")
-                continue
-            image_url = image_info.get('url')
-            if image_url:
-                if max_size_preview and 'width' in image_info:
-                    width = image_info['width']
-                    image_url = get_full_size_image_url(image_url, width)
-                print(f"Downloading preview image from {image_url}")
-                download_image(image_url, preview_image_file)
-                print(f"Saved preview image to {preview_image_file}")
-                # Validate the downloaded file (and possibly rename if needed)
-                validate_preview_file(base)
-                # Only download the first valid image
-                break
-    else:
+    """Download the preview image for a model."""
+    if 'images' not in model_info:
         print("No images found in model info.")
+        return
+        
+    for image_info in model_info['images']:
+        if skip_nsfw_preview and image_info.get('nsfw'):
+            print("Skipping NSFW image")
+            continue
+            
+        image_url = image_info.get('url')
+        if not image_url:
+            continue
+            
+        if max_size_preview and 'width' in image_info:
+            width = image_info['width']
+            image_url = get_full_size_image_url(image_url, width)
+            
+        print(f"Downloading preview from {image_url}")
+        preview_path = base + '.preview.png'  # Initial extension will be changed by download_image
+        
+        if download_image(image_url, preview_path):
+            # Successfully downloaded and processed
+            break
+        else:
+            print("Failed to download preview, trying next image if available")
+            continue
 
 def scan_models(model_dir, model_extensions, max_size_preview=False, skip_nsfw_preview=False):
     """Scan model directory and process each model file."""
