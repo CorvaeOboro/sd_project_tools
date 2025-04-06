@@ -1,14 +1,18 @@
-# IMAGE REVIEW AND RANK
-# Browse folders of images, move images into ranked folders with mouse clicks
+"""
+ IMAGE REVIEW AND RANK
+ Browse folders of images, move images into ranked folders with mouse clicks
+
+"""
 # ===========================================================================================
 import os
 import sys
+import json
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout,
-                             QWidget, QGridLayout, QScrollArea, QMessageBox, QPushButton, QHBoxLayout,
-                             QLineEdit, QFileDialog, QCheckBox, QScrollBar)
+                             QWidget, QGridLayout, QScrollArea, QPushButton, QHBoxLayout,
+                             QLineEdit, QFileDialog, QCheckBox, QScrollBar, QFrame)
 from PyQt5.QtGui import QPixmap, QMouseEvent, QFontMetrics, QImage, QMovie, QColor
 from PyQt5.QtCore import (Qt, QThreadPool, QRunnable, pyqtSignal, QObject,
-                          QSize, QEvent, QRect, QPoint)
+                          QSize, QEvent, QRect, QPoint, QTimer)
 import qdarkstyle
 
 # ===========================================================================================
@@ -19,9 +23,9 @@ class WorkerSignals(QObject):
 
 class ImageLoader(QRunnable):
     """
-    Modified ImageLoader to distinguish between normal images vs. animated WebP.
-    If the file is .webp, skip creating a QImage thumbnail here to preserve frames.
-    Instead, pass a flag indicating it's WebP for lazy creation of QMovie in the GUI.
+    ImageLoader handles normal images and animated WebP.
+    If the file is .webp, skip creating a QImage thumbnail to preserve frames.
+    , pass a flag indicating it's WebP for lazy creation of QMovie in the GUI.
     """
     def __init__(self, image_paths, image_width, image_height):
         super().__init__()
@@ -61,6 +65,9 @@ class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+        # Settings file path
+        self.settings_file = os.path.join(os.path.dirname(__file__), 'image_review_settings.json')
+        
         # Basic config
         self.project_folder = os.getcwd()
         self.middle_folder = ''
@@ -72,6 +79,7 @@ class MainWindow(QMainWindow):
         self.current_category = None
         self.current_item = None
         self.folder_path = ''
+        self.current_project_name = ''
 
         # Data structures
         self.images = []
@@ -92,10 +100,52 @@ class MainWindow(QMainWindow):
         self.central_widget = QWidget(self)
         self.setCentralWidget(self.central_widget)
         self.main_layout = QVBoxLayout(self.central_widget)
+        self.main_layout.setContentsMargins(2, 2, 2, 2)
+        self.main_layout.setSpacing(2)
+
+        # Project settings panel at the very top
+        self.settings_widget = QWidget()
+        self.settings_layout = QHBoxLayout(self.settings_widget)
+        self.settings_layout.setContentsMargins(0, 0, 0, 0)
+        self.settings_layout.setSpacing(2)
+        
+        # Project name input
+        self.project_name_input = QLineEdit()
+        self.project_name_input.setPlaceholderText("Project Settings Name")
+        self.project_name_input.setText(self.current_project_name)
+        
+        # Save settings button
+        self.save_settings_btn = QPushButton("Save Settings")
+        self.save_settings_btn.clicked.connect(self.save_current_settings)
+        
+        # Add to settings layout
+        self.settings_layout.addWidget(self.project_name_input)
+        self.settings_layout.addWidget(self.save_settings_btn)
+        
+        # Project buttons container
+        self.projects_container = QFrame()
+        self.projects_layout = QHBoxLayout(self.projects_container)
+        self.projects_layout.setContentsMargins(0, 0, 0, 0)
+        self.projects_layout.setSpacing(2)
+        self.load_project_buttons()
+        
+        # Add settings widgets to main layout
+        self.main_layout.addWidget(self.settings_widget)
+        self.main_layout.addWidget(self.projects_container)
+        
+        # Add a separator line
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        separator.setStyleSheet("background-color: #404040; margin: 0;")
+        separator.setMaximumHeight(1)
+        self.main_layout.addWidget(separator)
 
         # Top panel for PROJECT folder selection
         self.top_widget = QWidget()
         self.top_layout = QHBoxLayout(self.top_widget)
+        self.top_layout.setContentsMargins(0, 0, 0, 0)
+        self.top_layout.setSpacing(2)
         self.project_line_edit = QLineEdit()
         self.project_line_edit.setPlaceholderText("Enter PROJECT folder path")
         self.project_line_edit.setText(self.project_folder)
@@ -126,6 +176,8 @@ class MainWindow(QMainWindow):
         # Left panel (CATEGORY)
         self.category_widget = QWidget()
         self.category_layout = QVBoxLayout()
+        self.category_layout.setContentsMargins(0, 0, 0, 0)
+        self.category_layout.setSpacing(1)
         self.category_widget.setLayout(self.category_layout)
         self.category_scroll_area = QScrollArea()
         self.category_scroll_area.setWidgetResizable(True)
@@ -141,6 +193,8 @@ class MainWindow(QMainWindow):
         # Middle panel (ITEM)
         self.item_widget = QWidget()
         self.item_layout = QVBoxLayout()
+        self.item_layout.setContentsMargins(0, 0, 0, 0)
+        self.item_layout.setSpacing(1)
         self.item_widget.setLayout(self.item_layout)
         self.item_scroll_area = QScrollArea()
         self.item_scroll_area.setWidgetResizable(True)
@@ -156,6 +210,8 @@ class MainWindow(QMainWindow):
         # Right panel (images)
         self.image_widget = QWidget()
         self.image_layout = QVBoxLayout()
+        self.image_layout.setContentsMargins(0, 0, 0, 0)
+        self.image_layout.setSpacing(1)
         self.image_widget.setLayout(self.image_layout)
         self.horizontal_layout.addWidget(self.image_widget)
 
@@ -187,7 +243,11 @@ class MainWindow(QMainWindow):
         if os.path.exists(self.project_folder):
             self.load_categories()
         else:
-            QMessageBox.warning(self, "Warning", "The specified PROJECT folder does not exist.")
+            # Replace QMessageBox with status label
+            status_label = QLabel("The specified PROJECT folder does not exist.")
+            status_label.setStyleSheet("color: red;")
+            self.main_layout.addWidget(status_label)
+            QTimer.singleShot(3000, status_label.deleteLater)
 
     def middle_folder_changed(self):
         self.middle_folder = self.middle_folder_line_edit.text()
@@ -264,7 +324,11 @@ class MainWindow(QMainWindow):
             item_parent_path = category_path
 
         if not os.path.exists(item_parent_path):
-            QMessageBox.warning(self, "Warning", f"Item folder not found in {item_parent_path}")
+            # Replace QMessageBox with status label
+            status_label = QLabel(f"Item folder not found in {item_parent_path}")
+            status_label.setStyleSheet("color: red;")
+            self.main_layout.addWidget(status_label)
+            QTimer.singleShot(3000, status_label.deleteLater)
             return
 
         items = [
@@ -324,7 +388,11 @@ class MainWindow(QMainWindow):
         if self.use_gen_folder_checkbox.isChecked():
             image_folder_path = os.path.join(item_path, 'gen')
             if not os.path.exists(image_folder_path):
-                QMessageBox.warning(self, "Warning", f"'gen' folder not found in {item_path}")
+                # Replace QMessageBox with status label
+                status_label = QLabel(f"'gen' folder not found in {item_path}")
+                status_label.setStyleSheet("color: red;")
+                self.main_layout.addWidget(status_label)
+                QTimer.singleShot(3000, status_label.deleteLater)
                 return
         else:
             image_folder_path = item_path
@@ -575,12 +643,26 @@ class MainWindow(QMainWindow):
 
     def set_item_button_style(self, button, num_images, font_size):
         if num_images == 0:
-            color = 'red'
+            color = '#404040'  # dark grey instead of red
+        elif num_images == 1:
+            color = '#4287f5'  # blue for exactly 1 image
         elif num_images <= 5:
             color = 'orange'
         else:
             color = 'green'
-        button.setStyleSheet(f"font-size: {font_size}px; color: {color};")
+        button.setStyleSheet(f"""
+            QPushButton {{
+                font-size: {font_size}px;
+                color: {color};
+                padding: 2px 10px;
+                text-align: left;
+                border: none;
+                background-color: transparent;
+            }}
+            QPushButton:hover {{
+                background-color: rgba(255, 255, 255, 0.1);
+            }}
+        """)
 
     # -----------------------------------------------------------------------
     # Sizing
@@ -636,6 +718,130 @@ class MainWindow(QMainWindow):
         self.adjust_sizes()
         super().resizeEvent(event)
         self.update_visible_movies()  # re-check which WebPs are in view
+
+    def save_current_settings(self):
+        project_name = self.project_name_input.text().strip()
+        if not project_name:
+            status_label = QLabel("Please enter a project name")
+            status_label.setStyleSheet("color: red;")
+            self.main_layout.addWidget(status_label)
+            QTimer.singleShot(3000, status_label.deleteLater)
+            return
+
+        settings = {
+            'project_folder': self.project_folder,
+            'middle_folder': self.middle_folder,
+            'image_width': self.image_width,
+            'image_height': self.image_height,
+            'category_multiplier': self.category_multiplier_line_edit.text(),
+            'item_multiplier': self.item_multiplier_line_edit.text(),
+            'image_multiplier': self.image_multiplier_line_edit.text(),
+            'use_gen_folder': self.use_gen_folder_checkbox.isChecked()
+        }
+
+        try:
+            # Load existing settings
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, 'r') as f:
+                    all_settings = json.load(f)
+            else:
+                all_settings = {}
+
+            # Update with new settings
+            all_settings[project_name] = settings
+
+            # Save back to file
+            with open(self.settings_file, 'w') as f:
+                json.dump(all_settings, f, indent=4)
+
+            # Refresh project buttons
+            self.load_project_buttons()
+
+            # Show success message
+            status_label = QLabel(f"Settings saved as '{project_name}'")
+            status_label.setStyleSheet("color: green;")
+            self.main_layout.addWidget(status_label)
+            QTimer.singleShot(3000, status_label.deleteLater)
+
+        except Exception as e:
+            status_label = QLabel(f"Error saving settings: {str(e)}")
+            status_label.setStyleSheet("color: red;")
+            self.main_layout.addWidget(status_label)
+            QTimer.singleShot(3000, status_label.deleteLater)
+
+    def load_project_buttons(self):
+        # Clear existing buttons
+        for i in reversed(range(self.projects_layout.count())):
+            widget = self.projects_layout.itemAt(i).widget()
+            if widget:
+                widget.deleteLater()
+
+        # Add label
+        label = QLabel("Saved Projects:")
+        label.setStyleSheet("color: #808080;")
+        self.projects_layout.addWidget(label)
+
+        try:
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, 'r') as f:
+                    all_settings = json.load(f)
+                
+                for project_name in all_settings:
+                    btn = QPushButton(project_name)
+                    btn.setStyleSheet("""
+                        QPushButton {
+                            background-color: #2a2a2a;
+                            border: none;
+                            padding: 2px 10px;
+                            color: #c0c0c0;
+                        }
+                        QPushButton:hover {
+                            background-color: #404040;
+                        }
+                    """)
+                    btn.clicked.connect(lambda checked, name=project_name: self.load_project_settings(name))
+                    self.projects_layout.addWidget(btn)
+        except Exception as e:
+            print(f"Error loading project buttons: {e}")
+
+    def load_project_settings(self, project_name):
+        try:
+            with open(self.settings_file, 'r') as f:
+                all_settings = json.load(f)
+            
+            if project_name in all_settings:
+                settings = all_settings[project_name]
+                
+                # Apply settings
+                self.project_folder = settings['project_folder']
+                self.middle_folder = settings['middle_folder']
+                self.image_width = settings['image_width']
+                self.image_height = settings['image_height']
+                
+                # Update UI elements
+                self.project_line_edit.setText(self.project_folder)
+                self.middle_folder_line_edit.setText(self.middle_folder)
+                self.category_multiplier_line_edit.setText(settings['category_multiplier'])
+                self.item_multiplier_line_edit.setText(settings['item_multiplier'])
+                self.image_multiplier_line_edit.setText(settings['image_multiplier'])
+                self.use_gen_folder_checkbox.setChecked(settings['use_gen_folder'])
+                self.project_name_input.setText(project_name)
+                self.current_project_name = project_name
+                
+                # Reload UI
+                self.load_categories()
+                
+                # Show success message
+                status_label = QLabel(f"Loaded settings from '{project_name}'")
+                status_label.setStyleSheet("color: green;")
+                self.main_layout.addWidget(status_label)
+                QTimer.singleShot(3000, status_label.deleteLater)
+
+        except Exception as e:
+            status_label = QLabel(f"Error loading settings: {str(e)}")
+            status_label.setStyleSheet("color: red;")
+            self.main_layout.addWidget(status_label)
+            QTimer.singleShot(3000, status_label.deleteLater)
 
 # ===========================================================================================
 if __name__ == '__main__':
