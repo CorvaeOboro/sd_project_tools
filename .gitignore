@@ -167,3 +167,6 @@ thumbnail.png
 sd_batch_image_gen_auto1111_webui_error_log.txt
 SD_PROJECT_TOOLS.code-workspace
 logs/
+image_review_settings.json
+sd_civitai_info_get_settings.json
+sd_civitai_info_get.bat
