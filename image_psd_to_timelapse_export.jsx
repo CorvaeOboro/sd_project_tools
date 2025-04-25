@@ -5,6 +5,9 @@
 #target photoshop
 app.bringToFront();
 
+// === GLOBAL VARIABLE FOR TARGET HEIGHT ===
+var TARGET_HEIGHT = 1000; // Resize height in pixels
+
 (function () {
     if (!app.documents.length) {
         alert("No PSD is currently open.");
@@ -16,6 +19,11 @@ app.bringToFront();
     var parentFolder = decodeURI(doc.path); // Same folder as PSD
     var allLayers = [];
     collectLayers(doc, allLayers);
+
+    // === RESIZE TO TARGET HEIGHT, PROPORTIONAL WIDTH ===
+    if (doc.height != TARGET_HEIGHT) {
+        doc.resizeImage(null, UnitValue(TARGET_HEIGHT, "px"), null, ResampleMethod.BICUBIC);
+    }
 
     var visibleLayers = [];
     var originalVisibility = [];
@@ -46,7 +54,9 @@ app.bringToFront();
         } catch (e) {}
     }
 
-    alert("Export complete.");
+    // === CLOSE DOCUMENT WITHOUT SAVING, NO PROMPT ===
+    doc.close(SaveOptions.DONOTSAVECHANGES);
+    // (No alert or message prompt)
 })();
 
 function collectLayers(parent, result) {

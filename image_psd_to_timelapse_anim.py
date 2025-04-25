@@ -21,7 +21,6 @@ from win32com.client import Dispatch, GetActiveObject, constants # used for phto
 import time # sleeping between saving temps
 import gc
 import psutil
-import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import sys
@@ -52,6 +51,7 @@ WEBM_FRAME_RATE = 5 # average layer totals around 300-600 , 450/ 10 = 45 seconds
 # framerate of 6 = 865 layers in 30 seconds
 SIMILARITY_THRESHOLD = 1 # how different each layer needs to be , skipping empty or low impact layers 
 EXCLUSION_FOLDERS = ["00_backup","backup"]
+PHOTOSHOP_EXPORT_JSX = "image_psd_to_timelapse_export.jsx"
 #//==============================================================================
 
 def parse_args():
@@ -76,32 +76,89 @@ def extract_visible_layers(layer, layer_list):
         else:
             layer_list.append(layer)
 
-def psd_to_layered_images(input_psd_path):
-    """ the PSD is saved to composite images that includes the layers visible in stacked order to show the progression of the PSD """
-    input_psd_path = Path(input_psd_path)  # Ensure the path is a Path object
+def psd_to_layered_images(input_psd_path, log_callback=print):
+    """
+    Enhanced: Recursively traverse all groups/subgroups, collecting visible pixel layers at any depth.
+    Handles grouped layers and subgroups robustly.
+    Adds detailed logging for debugging.
+    """
+    input_psd_path = Path(input_psd_path)
+    log_callback(f"[psd_to_layered_images] Opening PSD: {input_psd_path}")
     psd = PSDImage.open(input_psd_path)
-    visible_layers = []
-    start_time = time.time()
-    for layer in psd.descendants():
-        extract_visible_layers(layer, visible_layers)
-    print(f"Extracting layers took {time.time() - start_time:.2f}s")
+    log_callback(f"[psd_to_layered_images][DEBUG] PSD type: {type(psd)}")
+    log_callback(f"[psd_to_layered_images][DEBUG] PSD dir: {dir(psd)}")
+    log_callback(f"[psd_to_layered_images][DEBUG] PSD has {len(psd)} top-level layers.")
 
-    start_time = time.time()
-    for layer in visible_layers:
-        layer.visible = False
-
-    # Custom tqdm setup with dynamic width and enhanced formatting
-    dynamic_tqdm = tqdm(visible_layers, desc="Processing layers", ncols=get_dynamic_tqdm_width(),
-                        bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]")
-    for idx, layer in enumerate(dynamic_tqdm):
-        start_time = time.time()
-        for j in range(idx + 1):
-            visible_layers[j].visible = True
-        image = psd.composite(force=True)
-        # image = resize_image(psd.composite(force=True), max_size) resize is no longer done here it is done to the temp PSD once for speed
-        image.save(input_psd_path / f'psdtemp_{idx:05}.png')
-        gc.collect()
-        dynamic_tqdm.set_postfix_str(f"Layer {idx} processed in {time.time() - start_time:.2f}s")
+    all_layers = []
+    def collect_layers(layer, parents_visible=True, parent_names=None, depth=0):
+        if parent_names is None:
+            parent_names = []
+        name = getattr(layer, 'name', 'unnamed')
+        visible = getattr(layer, 'visible', False)
+        combined_visible = parents_visible and visible
+        layer_type = type(layer).__name__
+        # Robust pixel layer check
+        has_pixels = False
+        try:
+            if hasattr(layer, 'has_pixels') and callable(layer.has_pixels):
+                has_pixels = layer.has_pixels()
+            # Also check kind == 'pixel' or composite() returns an image
+            if not has_pixels and hasattr(layer, 'kind') and getattr(layer, 'kind', None) == 'pixel':
+                has_pixels = True
+            if not has_pixels:
+                # Try composite()
+                try:
+                    img = layer.composite()
+                    if img is not None and img.getbbox() is not None:
+                        has_pixels = True
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        log_callback(f"[psd_to_layered_images] {'  '*depth}Layer: {'/'.join(parent_names + [name])} | Type: {layer_type} | Visible: {combined_visible} | Has Pixels: {has_pixels} | Keys: {list(layer.__dict__.keys()) if hasattr(layer, '__dict__') else 'N/A'}")
+        if hasattr(layer, 'layers') and len(layer.layers) > 0:
+            log_callback(f"[psd_to_layered_images] {'  '*depth}Group/Folder: {name} contains {len(layer.layers)} sublayers")
+            for sub in layer.layers:
+                collect_layers(sub, combined_visible, parent_names + [name], depth=depth+1)
+        else:
+            all_layers.append((layer, combined_visible, parent_names + [name], layer_type, has_pixels))
+    # Instead of starting traversal at the root PSDImage, traverse its direct children (actual top-level layers)
+    for layer in psd._layers:
+        collect_layers(layer)
+    log_callback(f"[psd_to_layered_images][DEBUG] All layers collected: {len(all_layers)}")
+    for lyr, combined_visible, parent_names, layer_type, has_pixels in all_layers:
+        log_callback(f"[psd_to_layered_images][SUMMARY] {'/'.join(parent_names)} | Type: {layer_type} | Visible: {combined_visible} | Has Pixels: {has_pixels}")
+    # Only consider visible, pixel layers at any depth
+    pixel_layers = []
+    for lyr, combined_visible, parent_names, layer_type, has_pixels in all_layers:
+        if combined_visible and has_pixels:
+            pixel_layers.append((lyr, parent_names, layer_type))
+    out_dir = input_psd_path.parent
+    total = len(pixel_layers)
+    size = psd.size
+    mode = 'RGBA'
+    log_callback(f"[psd_to_layered_images] Total exportable layers: {total}")
+    if total == 0:
+        log_callback("[psd_to_layered_images] No visible pixel layers found. Nothing to export.")
+        return
+    from PIL import Image
+    for i in range(total):
+        composite = Image.new(mode, size, (0, 0, 0, 0))
+        log_callback(f"[psd_to_layered_images] Compositing frame {i}: layers {i} to {total-1}")
+        for lyr, parent_names, layer_type in pixel_layers[i:]:
+            try:
+                img = lyr.composite()
+                if img is not None and img.getbbox() is not None:
+                    offset = getattr(lyr, 'offset', (0, 0))
+                    composite.alpha_composite(img, dest=offset)
+                    log_callback(f"  + Added layer: {'/'.join(parent_names)} [{layer_type}] at offset {offset}")
+                else:
+                    log_callback(f"  - Skipped blank or non-composite layer: {'/'.join(parent_names)} [{layer_type}]")
+            except Exception as e:
+                log_callback(f"  ! Error compositing layer {'/'.join(parent_names)} [{layer_type}]: {e}")
+        out_path = out_dir / f'psdtemp_{i:05}.png'
+        composite.save(out_path)
+        log_callback(f"[psd_to_layered_images] Saved frame: {out_path}")
 
 def images_are_similar(img1_data, img2_data, threshold=1):
     # Ensure both images have the same size
@@ -344,6 +401,69 @@ def resize_psd_via_photoshop(psd_path, maximum_dimension, log_callback=None):
             print(msg3)
         return None
 
+def export_layers_with_photoshop_jsx(psd_path, jsx_path, output_dir, log_callback=print):
+    """
+    Use Photoshop and the provided JSX script to export PSD layers.
+    Args:
+        psd_path: Path to the PSD file or directory
+        jsx_path: Path to the JSX script (should be absolute)
+        output_dir: Directory to output exported layers
+        log_callback: Optional logger
+    """
+    import sys
+    import time
+    from pathlib import Path
+    import os
+    import pythoncom
+    pythoncom.CoInitialize()
+    psd_path = Path(psd_path)
+    output_dir = Path(output_dir)
+    jsx_script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), PHOTOSHOP_EXPORT_JSX))
+    # If psd_path is a directory, find the first PSD file inside
+    if psd_path.is_dir():
+        log_callback(f"[Photoshop JSX Export][DEBUG] Input is a directory. Searching for PSD file in {psd_path}")
+        psd_files = list(psd_path.glob('*.psd'))
+        if not psd_files:
+            log_callback(f"[Photoshop JSX Export][ERROR] No PSD file found in directory: {psd_path}")
+            pythoncom.CoUninitialize()
+            return
+        psd_file = psd_files[0]
+        log_callback(f"[Photoshop JSX Export] Using PSD file: {psd_file}")
+    else:
+        psd_file = psd_path
+        log_callback(f"[Photoshop JSX Export] Using PSD file: {psd_file}")
+    log_callback(f"[Photoshop JSX Export] Starting export for {psd_file} using {jsx_script_path}")
+    try:
+        import win32com.client
+        app = win32com.client.Dispatch("Photoshop.Application")
+        app.Visible = True
+        log_callback(f"[Photoshop JSX Export] Waiting for Photoshop to load...")
+        time.sleep(3)
+        log_callback(f"[Photoshop JSX Export] Opening PSD in Photoshop: {psd_file}")
+        try:
+            doc = app.Open(str(psd_file))
+            log_callback(f"[Photoshop JSX Export] PSD opened successfully.")
+            log_callback(f"[Photoshop JSX Export] Waiting for PSD to finish loading...")
+            time.sleep(2)
+        except Exception as e:
+            log_callback(f"[Photoshop JSX Export][ERROR] Failed to open PSD: {e}")
+            return
+        # Optional: Add a delay here if resizing via Photoshop is required
+        # log_callback(f"[Photoshop JSX Export] Waiting after resize (if applicable)...")
+        # time.sleep(2)
+        log_callback(f"[Photoshop JSX Export] Running JSX: {jsx_script_path}")
+        app.DoJavaScriptFile(str(jsx_script_path))
+        log_callback(f"[Photoshop JSX Export] Waiting for export to complete...")
+        for i in range(60):
+            if any(output_dir.glob("*.png")):
+                break
+            time.sleep(1)
+        log_callback(f"[Photoshop JSX Export] Export completed. Check {output_dir}")
+    except Exception as e:
+        log_callback(f"[Photoshop JSX Export][ERROR] Failed to run JSX: {e}")
+    finally:
+        pythoncom.CoUninitialize()
+
 def process_psd_files(input_maximum_dimension, input_make_webm, input_make_gif, input_loop_backward, input_export_layered, input_path, progress_callback=None, log_callback=None):
     # Modularized to accept input_path and callbacks for GUI/CLI
     psd_files = [p for p in Path(input_path).rglob("*.psd") if "backup" not in p.parts] if Path(input_path).is_dir() else [Path(input_path)]
@@ -372,7 +492,7 @@ def process_psd_files(input_maximum_dimension, input_make_webm, input_make_gif, 
                 print(f"Resized PSD file saved at: {resized_psd_path}")
                 time.sleep(2)  # Wait for the file save
                 if input_export_layered:
-                    psd_to_layered_images(resized_psd_path)
+                    psd_to_layered_images(resized_psd_path, log_callback=log_callback)
                     os.remove(resized_psd_path)
                     print(f"Layer images extracted and temporary PSD file removed.")
                 if input_make_gif or input_make_webm:
@@ -443,16 +563,18 @@ def export_layered_images_only(input_path, max_dimension=1000, log_callback=None
         log_callback: Optional logging callback
     """
     from pathlib import Path
+    import shutil
     psd_files = [p for p in Path(input_path).rglob("*.psd") if "backup" not in p.parts] if Path(input_path).is_dir() else [Path(input_path)]
     for psd_file_path in psd_files:
         print(f"Exporting layered images for {psd_file_path}")
-        resized_psd_path = resize_psd_via_photoshop(str(psd_file_path), max_dimension, log_callback=log_callback)
-        if not resized_psd_path or not os.path.exists(resized_psd_path):
-            print(f"[ERROR] Could not resize {psd_file_path}. Skipping.")
-            if log_callback:
-                log_callback(f"[ERROR] Could not resize {psd_file_path}. Skipping.")
-            continue
-        psd_to_layered_images(resized_psd_path)
+        # If resizing is requested, use Photoshop. If not, just duplicate the file.
+        # This function should only be called when resize is OFF, so just duplicate.
+        resized_psd_path = psd_file_path.parent / f"PSDTEMP_{psd_file_path.name}"
+        shutil.copy2(psd_file_path, resized_psd_path)
+        print(f"[INFO] Duplicated PSD to {resized_psd_path}")
+        if log_callback:
+            log_callback(f"[INFO] Duplicated PSD to {resized_psd_path}")
+        psd_to_layered_images(resized_psd_path, log_callback=log_callback)
         os.remove(resized_psd_path)
         print(f"Layer images exported and temp PSD removed for {psd_file_path}")
         if log_callback:
@@ -492,6 +614,7 @@ def run_gui():
     loop_backward_var = tk.BooleanVar(value=False)
     reverse_order_var = tk.BooleanVar(value=True)
     delete_frames_var = tk.BooleanVar(value=False)
+    use_photoshop_jsx_var = tk.BooleanVar(value=False)
 
     # --- UI Layout ---
     # Row 1: Export Layered | Resize | Max Size label | Max Size input
@@ -510,12 +633,15 @@ def run_gui():
     tk.Checkbutton(root, text="Loop Backward", variable=loop_backward_var, bg=bg, fg=fg, selectcolor=bg).grid(row=3, column=1, sticky="w")
     tk.Checkbutton(root, text="Delete Frames After", variable=delete_frames_var, bg=bg, fg=fg, selectcolor=bg).grid(row=3, column=2, sticky="w")
 
+    # Row 4: Use Photoshop JSX export
+    tk.Checkbutton(root, text="Use Photoshop JSX Export", variable=use_photoshop_jsx_var, bg=bg, fg=fg, selectcolor=bg).grid(row=4, column=0, sticky="w")
+
     # Progress and log
     progress_var = tk.DoubleVar()
     progress_bar = tk.Scale(root, variable=progress_var, from_=0, to=100, orient="horizontal", showvalue=False, length=400, bg=bg)
-    progress_bar.grid(row=4, column=0, columnspan=4, padx=5, pady=10)
+    progress_bar.grid(row=5, column=0, columnspan=4, padx=5, pady=10)
     log_text = tk.Text(root, height=8, bg="#181A1B", fg="#b0b0b0", wrap="word")
-    log_text.grid(row=5, column=0, columnspan=4, sticky="ew", padx=5)
+    log_text.grid(row=6, column=0, columnspan=4, sticky="ew", padx=5)
     log_text.config(state="disabled")
 
     def append_log(msg):
@@ -551,6 +677,7 @@ def run_gui():
         delete_frames = delete_frames_var.get()
         resize = resize_var.get()
         max_size = max_size_var.get()
+        use_photoshop_jsx = use_photoshop_jsx_var.get()
         # Log all current UI states
         append_log("[UI] Start button pressed with the following settings:")
         append_log(f"[UI]   Path: {folder}")
@@ -563,6 +690,7 @@ def run_gui():
         append_log(f"[UI]   Reverse Order: {reverse_order}")
         append_log(f"[UI]   Loop Backward: {loop_backward}")
         append_log(f"[UI]   Delete Frames After: {delete_frames}")
+        append_log(f"[UI]   Use Photoshop JSX Export: {use_photoshop_jsx}")
         append_log(f"[UI]   Exported frames exist: {frames_exist} (dir checked: {frames_dir})")
         # Redirect stdout/stderr to GUI log
         sys.stdout = TkinterConsole(append_log)
@@ -570,42 +698,41 @@ def run_gui():
         # Disable UI
         for child in root.winfo_children():
             child.configure(state="disabled")
-        def run():
-            # If we only want to make video/gif/webp and frames exist, skip Photoshop entirely
-            if (not export_layered):
-                if frames_exist and (make_webm or make_gif or make_webp):
-                    append_log(f"[INFO] Detected exported frames in {frames_dir}. Skipping Photoshop and processing frames directly.")
-                    if make_webm:
-                        process_frames_to_video(frames_dir, "timelapse", file_type="webm", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
-                    if make_gif:
-                        process_frames_to_video(frames_dir, "timelapse", file_type="gif", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
-                    if make_webp:
-                        process_frames_to_video(frames_dir, "timelapse", file_type="webp", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
-                else:
-                    append_log("[ERROR] No exported frames found (psdtemp_*.png) in the selected folder. Please export frames first or enable 'Export Layered'.")
-                for child in root.winfo_children():
-                    child.configure(state="normal")
-                return
-            # Only if Export Layered is ON do we check Photoshop and process PSDs
-            if not check_photoshop_available(verbose=True, log_callback=append_log):
-                append_log("[ERROR] Photoshop is not available or not installed. Please install Photoshop and try again.")
-                for child in root.winfo_children():
-                    child.configure(state="normal")
-                return
-            process_psd_files(
-                max_size,
-                make_webm,
-                make_gif,
-                loop_backward,
-                export_layered,
-                folder,
-                progress_callback=gui_progress_callback,
-                log_callback=gui_log_callback
-            )
-            for child in root.winfo_children():
-                child.configure(state="normal")
-        threading.Thread(target=run, daemon=True).start()
-    tk.Button(root, text="Start", command=start, bg=btn_bg, fg=btn_fg).grid(row=6, column=1, pady=10)
+        # Run
+        if (not export_layered):
+            if frames_exist and (make_webm or make_gif or make_webp):
+                append_log(f"[INFO] Detected exported frames in {frames_dir}. Skipping Photoshop and processing frames directly.")
+                if make_webm:
+                    process_frames_to_video(frames_dir, "timelapse", file_type="webm", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
+                if make_gif:
+                    process_frames_to_video(frames_dir, "timelapse", file_type="gif", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
+                if make_webp:
+                    process_frames_to_video(frames_dir, "timelapse", file_type="webp", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
+            else:
+                append_log("[ERROR] No exported frames found (psdtemp_*.png) in the selected folder. Please export frames first or enable 'Export Layered'.")
+        else:
+            if use_photoshop_jsx:
+                append_log("[INFO] Exporting using Photoshop JSX script...")
+                jsx_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image_psd_to_timelapse_export.jsx")
+                export_layers_with_photoshop_jsx(input_path, jsx_path, input_path, log_callback=append_log)
+            else:
+                append_log("[INFO] Exporting layered images using psd-tools (no Photoshop dependency)...")
+                export_layered_images_only(
+                    folder,
+                    max_dimension=max_size,
+                    log_callback=append_log
+                )
+            if make_webm or make_gif or make_webp:
+                # After export, process frames
+                if make_webm:
+                    process_frames_to_video(folder, "timelapse", file_type="webm", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
+                if make_gif:
+                    process_frames_to_video(folder, "timelapse", file_type="gif", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
+                if make_webp:
+                    process_frames_to_video(folder, "timelapse", file_type="webp", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
+        for child in root.winfo_children():
+            child.configure(state="normal")
+    tk.Button(root, text="Start", command=start, bg=btn_bg, fg=btn_fg).grid(row=7, column=1, pady=10)
     root.mainloop()
 
 def get_dynamic_tqdm_width():

@@ -79,6 +79,8 @@ TOOL_CONFIG = {
             {"file": "video_clip_marker.py", "label": "Clip Marker", "icon": "", "color": "#8f80bf", "size_priority": 1}, 
             {"file": "video_place_in_image_composite.py", "label": "Place in Composite", "icon": "", "color": "#7a6fb0", "size_priority": 0},
             {"file": "video_webp_pingpong.py", "label": "WebP PingPong", "icon": "", "color": "#4a3f6a", "size_priority": 0},
+            {"file": "image_psd_to_timelapse_anim.py", "label": "PSD to Timelapse Anim", "icon": "", "color": "#4a6a8a", "size_priority": 1},
+            {"file": "video_add_audio.py", "label": "Add Audio", "icon": "", "color": "#4a6a8a", "size_priority": 1},
         ]
     },
     "SD webui Project ": { 
