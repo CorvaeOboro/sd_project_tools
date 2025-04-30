@@ -10,6 +10,7 @@ two boolean parameters: "nsfw" and "poi".
 For example:
     Primary file: berry(1).safetensors
     Associated info file: berry(1).civitai.info
+    Associated preview: berry(1).preview.png or berry(1).preview.webm, etc.
 
 Files flagged as:
     - nsfw: true   -> will be copied to a subfolder named "nsfw"
@@ -25,18 +26,23 @@ import glob
 import shutil
 import hashlib
 import time
+import logging
 from tqdm import tqdm
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
+from typing import List, Optional, Tuple
 
 # --------------------------
-# Debug Flag and Helper Function
+# Logging Configuration
 # --------------------------
-DEBUG = True
-
-def debug_print(message):
-    if DEBUG:
-        print(message)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('file_sorter.log')
+    ]
+)
 
 # --------------------------
 # Configuration Constants
@@ -44,247 +50,349 @@ def debug_print(message):
 # Extensions for files to be sorted (add any as needed)
 NEURALNETS_EXTENSIONS = ['.safetensors', '.pt', '.ckpt']
 
-# The extension for the associated info file.
-# (Set to ".civitai.info" so that e.g. "berry(1).safetensors" will be matched with "berry(1).civitai.info")
+# The extension for the associated info file
 INFO_EXTENSION = ".civitai.info"
 
-# Optional preview file extension (if such files exist alongside your primary files)
-PREVIEW_EXTENSION = ".preview.png"
+# List of possible preview file extensions
+PREVIEW_EXTENSIONS = [
+    ".preview.png",
+    ".preview.jpg",
+    ".preview.jpeg",
+    ".preview.webp",
+    ".preview.gif",
+    ".preview.webm",
+    ".preview.mp4"
+]
 
 # Delay (in seconds) after copying a file (helps to avoid potential race conditions)
-TRANSFER_DELAY = 1
+TRANSFER_DELAY = 0.5  # Reduced from 1 to 0.5 to speed up processing
+
+# Maximum file size for progress reporting (in bytes)
+LARGE_FILE_THRESHOLD = 100 * 1024 * 1024  # 100MB
 
 # --------------------------
 # Helper Functions
 # --------------------------
-def get_file_hash(filepath):
-    """Return the SHA256 hash of the file at the given path."""
-    with open(filepath, 'rb') as f:
-        file_bytes = f.read()
-        file_hash = hashlib.sha256(file_bytes).hexdigest()
-        debug_print(f"Calculated hash for {filepath}: {file_hash}")
+def get_file_hash(filepath: str, chunk_size: int = 8192) -> str:
+    """
+    Return the SHA256 hash of the file at the given path.
+    Uses chunked reading for large files to avoid memory issues.
+    """
+    sha256_hash = hashlib.sha256()
+    file_size = os.path.getsize(filepath)
+    
+    try:
+        with open(filepath, 'rb') as f:
+            if file_size > LARGE_FILE_THRESHOLD:
+                with tqdm(total=file_size, unit='B', unit_scale=True, desc=f"Hashing {os.path.basename(filepath)}") as pbar:
+                    for chunk in iter(lambda: f.read(chunk_size), b''):
+                        sha256_hash.update(chunk)
+                        pbar.update(len(chunk))
+            else:
+                for chunk in iter(lambda: f.read(chunk_size), b''):
+                    sha256_hash.update(chunk)
+        
+        file_hash = sha256_hash.hexdigest()
+        logging.debug(f"Calculated hash for {filepath}: {file_hash}")
         return file_hash
+    except Exception as e:
+        logging.error(f"Error calculating hash for {filepath}: {e}")
+        raise
 
-def safe_copy_file(src, dest):
+def safe_copy_file(src: str, dest: str) -> str:
     """
     Copy a file from src to dest while verifying the copy.
-    If a file with the same name already exists, a new name is generated.
+    Uses chunked copying for large files to avoid memory issues.
     Returns the destination file path on success.
     """
-    debug_print(f"Starting to copy file from {src} to {dest}")
+    logging.info(f"Starting to copy file from {src} to {dest}")
     original_dest = dest
     base, ext = os.path.splitext(dest)
     counter = 1
-
-    # If a file with the same name exists, iterate the filename until a unique one is found.
+    
     while os.path.exists(original_dest):
-        # If the existing file is exactly the same, skip the copy.
+        try:
+            if (get_file_hash(src) == get_file_hash(original_dest) and
+                    os.path.getsize(src) == os.path.getsize(original_dest)):
+                logging.info(f"Destination file {original_dest} already exists and is identical.")
+                return original_dest
+        except Exception as e:
+            logging.warning(f"Error comparing files {src} and {original_dest}: {e}")
+            
+        original_dest = f"{base}_{counter}{ext}"
+        counter += 1
+        logging.debug(f"File exists. Trying new destination: {original_dest}")
+
+    try:
+        # Use chunked copying for large files
+        file_size = os.path.getsize(src)
+        if file_size > LARGE_FILE_THRESHOLD:
+            with open(src, 'rb') as fsrc, open(original_dest, 'wb') as fdst:
+                with tqdm(total=file_size, unit='B', unit_scale=True, 
+                         desc=f"Copying {os.path.basename(src)}") as pbar:
+                    while True:
+                        chunk = fsrc.read(8192)
+                        if not chunk:
+                            break
+                        fdst.write(chunk)
+                        pbar.update(len(chunk))
+            # Copy metadata separately
+            shutil.copystat(src, original_dest)
+        else:
+            shutil.copy2(src, original_dest)
+            
+        logging.debug(f"Copied file. Waiting {TRANSFER_DELAY} second(s)...")
+        time.sleep(TRANSFER_DELAY)
+
+        # Verify the copy
         if (get_file_hash(src) == get_file_hash(original_dest) and
                 os.path.getsize(src) == os.path.getsize(original_dest)):
-            debug_print(f"Destination file {original_dest} already exists and is identical.")
+            logging.info(f"File copy verified: {src} -> {original_dest}")
             return original_dest
         else:
-            original_dest = f"{base}_{counter}{ext}"
-            counter += 1
-            debug_print(f"File exists. Trying new destination: {original_dest}")
+            logging.error(f"Failed to verify copy of {src} to {original_dest}")
+            os.remove(original_dest)
+            raise Exception("File copy verification failed")
+    except Exception as e:
+        logging.error(f"Error during file copy {src} to {original_dest}: {e}")
+        if os.path.exists(original_dest):
+            os.remove(original_dest)
+        raise
 
-    # Copy the file and wait briefly.
-    shutil.copy2(src, original_dest)
-    debug_print(f"Copied file from {src} to {original_dest}. Waiting for {TRANSFER_DELAY} second(s)...")
-    time.sleep(TRANSFER_DELAY)
-
-    # Verify the copy by comparing the hash and file size.
-    if (get_file_hash(src) == get_file_hash(original_dest) and
-            os.path.getsize(src) == os.path.getsize(original_dest)):
-        debug_print(f"File copy verified: {src} -> {original_dest}")
-        return original_dest
-    else:
-        debug_print(f"Failed to verify copy of {src} to {original_dest}.")
-        os.remove(original_dest)
-        raise Exception("File copy verification failed")
-
-def load_json_safely(filepath):
+def load_json_safely(filepath: str) -> dict:
     """
-    Load JSON from a file, attempting to fix common formatting issues such as trailing commas.
-    Raises an error if parsing still fails.
+    Load JSON from a file, attempting to fix common formatting issues.
+    Raises an error if parsing fails.
     """
-    debug_print(f"Attempting to load JSON from {filepath}")
-    with open(filepath, 'r') as f:
-        try:
-            data = json.load(f)
-            debug_print(f"Successfully loaded JSON from {filepath}")
-            return data
-        except json.JSONDecodeError as e:
-            debug_print(f"JSON decode error in {filepath}: {e}. Trying to fix common issues.")
-            f.seek(0)
-            content = f.read()
-            # Remove trailing commas before closing braces or brackets.
-            content_fixed = re.sub(r',\s*([}\]])', r'\1', content)
+    logging.debug(f"Attempting to load JSON from {filepath}")
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
             try:
-                data = json.loads(content_fixed)
-                debug_print(f"Successfully loaded fixed JSON from {filepath}")
+                data = json.load(f)
+                logging.debug(f"Successfully loaded JSON from {filepath}")
                 return data
-            except Exception as e2:
-                raise ValueError(f"Failed to parse JSON file {filepath} even after fixing: {e2}")
+            except json.JSONDecodeError as e:
+                logging.warning(f"JSON decode error in {filepath}: {e}. Trying to fix common issues.")
+                f.seek(0)
+                content = f.read()
+                # Remove trailing commas before closing braces or brackets
+                content_fixed = re.sub(r',\s*([}\]])', r'\1', content)
+                try:
+                    data = json.loads(content_fixed)
+                    logging.info(f"Successfully loaded fixed JSON from {filepath}")
+                    return data
+                except Exception as e2:
+                    logging.error(f"Failed to parse JSON file {filepath} even after fixing: {e2}")
+                    raise ValueError(f"Failed to parse JSON file {filepath} even after fixing: {e2}")
+    except Exception as e:
+        logging.error(f"Error reading file {filepath}: {e}")
+        raise
 
-def find_associated_file(file_path, suffix):
+def find_associated_file(file_path: str, suffixes: str | List[str]) -> Optional[str]:
     """
-    Attempt to locate an associated file for the given file_path that ends with the provided suffix.
-    First, it constructs the candidate filename using os.path.splitext and appending the suffix.
-    If that candidate does not exist, it uses glob to search for files starting with the base name and ending with the suffix.
-    Returns the full path of the associated file if found; otherwise, returns None.
+    Attempt to locate an associated file that matches any of the provided suffixes.
+    Returns the full path of the first matching file found, or None if no matches.
     """
-    base = os.path.splitext(file_path)[0]  # e.g. "berry(1)" from "berry(1).safetensors"
-    candidate = base + suffix            # e.g. "berry(1).civitai.info"
-    if os.path.exists(candidate):
-        debug_print(f"Found associated file (direct match): {candidate}")
-        return candidate
-    else:
+    if isinstance(suffixes, str):
+        suffixes = [suffixes]
+        
+    base = os.path.splitext(file_path)[0]
+    logging.debug(f"Searching for associated files for {base} with suffixes: {suffixes}")
+    
+    for suffix in suffixes:
+        # Try direct match first
+        candidate = base + suffix
+        if os.path.exists(candidate):
+            logging.debug(f"Found associated file (direct match): {candidate}")
+            return candidate
+            
+        # Try glob pattern if direct match fails
         pattern = base + "*" + suffix
         matches = glob.glob(pattern)
         if matches:
-            debug_print(f"Found associated file via glob: {matches[0]} (pattern used: {pattern})")
+            logging.debug(f"Found associated file via glob: {matches[0]} (pattern: {pattern})")
             return matches[0]
-        else:
-            debug_print(f"No associated file found for {file_path} with suffix '{suffix}' (pattern: {pattern})")
-            return None
+            
+    logging.debug(f"No associated file found for {file_path} with any of the suffixes: {suffixes}")
+    return None
 
-def sort_files_by_parameters(base_dir, extensions, info_suffix, preview_suffix):
+def sort_files_by_parameters(base_dir: str, extensions: List[str], info_suffix: str, preview_suffixes: List[str]) -> None:
     """
-    Sort files in the base_dir (non-recursively) based on parameters found in the associated info file.
-    If the info file indicates that "nsfw" or "poi" is true in the "model" section, the files are
-    copied to corresponding subfolders ("nsfw" and/or "poi"). After successful copies, the originals are removed.
+    Sort files based on parameters in the associated info file.
+    Handles multiple preview file types and provides detailed progress information.
     """
-    debug_print(f"Scanning directory: {base_dir}")
+    logging.info(f"Starting file sort in directory: {base_dir}")
+    
+    if not os.path.exists(base_dir):
+        msg = f"Directory does not exist: {base_dir}"
+        logging.error(msg)
+        messagebox.showerror("Error", msg)
+        return
 
-    # List only files (not directories) with one of the target extensions in the base folder.
+    # List target files
     files = [
         f for f in os.listdir(base_dir)
-        if os.path.isfile(os.path.join(base_dir, f)) and os.path.splitext(f)[1].lower() in extensions
+        if os.path.isfile(os.path.join(base_dir, f)) and 
+        os.path.splitext(f)[1].lower() in extensions
     ]
     
-    debug_print(f"Found {len(files)} file(s) with the specified extensions in {base_dir}.")
+    if not files:
+        msg = f"No files found with extensions {extensions} in {base_dir}"
+        logging.warning(msg)
+        messagebox.showwarning("Warning", msg)
+        return
+        
+    logging.info(f"Found {len(files)} file(s) to process")
     
-    for file in tqdm(files, desc="Sorting files"):
+    for file in tqdm(files, desc="Processing files"):
         file_path = os.path.join(base_dir, file)
-        debug_print(f"Processing file: {file_path}")
+        logging.info(f"\nProcessing file: {file_path}")
+        
+        # Check file size
+        file_size = os.path.getsize(file_path)
+        if file_size > LARGE_FILE_THRESHOLD:
+            logging.info(f"Large file detected ({file_size/1024/1024:.2f} MB): {file}")
 
-        # Locate the associated info file robustly.
+        # Find associated files
         info_path = find_associated_file(file_path, info_suffix)
         if not info_path:
-            debug_print(f"No associated info file found for {file_path}. Skipping.")
+            logging.warning(f"No info file found for {file_path}. Skipping.")
             continue
 
-        # Locate the associated preview file (if it exists); this is optional.
-        preview_path = find_associated_file(file_path, preview_suffix)
+        preview_path = find_associated_file(file_path, preview_suffixes)
+        if preview_path:
+            logging.info(f"Found preview file: {preview_path}")
+        else:
+            logging.debug(f"No preview file found for {file_path}")
 
         try:
             info = load_json_safely(info_path)
+            nsfw_flag = info.get("model", {}).get("nsfw", False)
+            poi_flag = info.get("model", {}).get("poi", False)
+            logging.info(f"Parameters: nsfw={nsfw_flag}, poi={poi_flag}")
+
+            destinations = []
+            if nsfw_flag:
+                destinations.append(os.path.join(base_dir, "nsfw"))
+            if poi_flag:
+                destinations.append(os.path.join(base_dir, "poi"))
+
+            if not destinations:
+                logging.debug(f"File {file_path} does not meet any criteria. Skipping.")
+                continue
+
+            # Process each destination
+            copy_success = True
+            for dest in destinations:
+                os.makedirs(dest, exist_ok=True)
+                logging.info(f"Copying files to: {dest}")
+
+                try:
+                    # Copy main file
+                    dest_file = os.path.join(dest, os.path.basename(file_path))
+                    safe_copy_file(file_path, dest_file)
+
+                    # Copy info file
+                    dest_info = os.path.join(dest, os.path.basename(info_path))
+                    safe_copy_file(info_path, dest_info)
+
+                    # Copy preview if it exists
+                    if preview_path:
+                        dest_preview = os.path.join(dest, os.path.basename(preview_path))
+                        safe_copy_file(preview_path, dest_preview)
+
+                except Exception as e:
+                    logging.error(f"Error copying files to {dest}: {e}")
+                    copy_success = False
+                    break
+
+            # Remove originals if all copies succeeded
+            if copy_success:
+                logging.info("Removing original files...")
+                try:
+                    os.remove(file_path)
+                    os.remove(info_path)
+                    if preview_path:
+                        os.remove(preview_path)
+                    logging.info("Original files removed successfully")
+                except Exception as e:
+                    logging.error(f"Error removing original files: {e}")
+            else:
+                logging.warning("Skipping removal of originals due to copy errors")
+
         except Exception as e:
-            debug_print(f"Error loading/parsing info file {info_path}: {e}. Skipping file.")
+            logging.error(f"Error processing {file_path}: {e}")
             continue
 
-        # Extract flags; default to False if not present.
-        nsfw_flag = info.get("model", {}).get("nsfw", False)
-        poi_flag = info.get("model", {}).get("poi", False)
-        debug_print(f"Extracted parameters for {file_path}: nsfw={nsfw_flag}, poi={poi_flag}")
-
-        # Determine destination folders based on the flags.
-        destinations = []
-        if nsfw_flag:
-            destinations.append(os.path.join(base_dir, "nsfw"))
-        if poi_flag:
-            destinations.append(os.path.join(base_dir, "poi"))
-        
-        # If neither flag is true, skip the file.
-        if not destinations:
-            debug_print(f"File {file_path} does not meet any criteria (nsfw or poi true). Skipping.")
-            continue
-
-        # Attempt to copy the file (and its associated info/preview) to each destination.
-        copy_success = True
-        for dest in destinations:
-            os.makedirs(dest, exist_ok=True)
-            debug_print(f"Destination directory ensured: {dest}")
-
-            dest_file = os.path.join(dest, os.path.basename(file_path))
-            dest_info = os.path.join(dest, os.path.basename(info_path))
-            dest_preview = preview_path and os.path.join(dest, os.path.basename(preview_path))
-
-            try:
-                debug_print(f"Copying {file_path} to {dest_file}")
-                safe_copy_file(file_path, dest_file)
-                debug_print(f"Copying {info_path} to {dest_info}")
-                safe_copy_file(info_path, dest_info)
-                if preview_path and os.path.exists(preview_path):
-                    debug_print(f"Copying {preview_path} to {dest_preview}")
-                    safe_copy_file(preview_path, dest_preview)
-            except Exception as e:
-                debug_print(f"Error copying files for {file_path} to {dest}: {e}")
-                copy_success = False
-                break
-
-        # If all copies succeeded, remove the original file(s).
-        if copy_success:
-            debug_print(f"All copies successful for {file_path}. Removing original files.")
-            try:
-                os.remove(file_path)
-                os.remove(info_path)
-                if preview_path and os.path.exists(preview_path):
-                    os.remove(preview_path)
-            except Exception as e:
-                debug_print(f"Error removing original files for {file_path}: {e}")
-        else:
-            debug_print(f"Skipping removal of original files for {file_path} due to copy errors.")
-
 # --------------------------
-# GUI Code for User Interaction
+# GUI Code
 # --------------------------
-def select_directory(entry_widget):
-    """Open a directory selection dialog and insert the chosen directory into the entry widget."""
-    directory = filedialog.askdirectory()
-    if directory:
-        entry_widget.delete(0, tk.END)
-        entry_widget.insert(0, directory)
-        debug_print(f"Directory selected: {directory}")
+class FileOrganizerGUI:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title('Parameter-based File Organizer')
+        self.root.configure(bg='#333333')
+        self.setup_ui()
+
+    def setup_ui(self):
+        # Directory entry
+        self.entry = tk.Entry(self.root, width=60, bg='#666666', fg='white')
+        self.entry.pack(padx=10, pady=10)
+
+        # Buttons frame
+        frame_buttons = tk.Frame(self.root, bg='#333333')
+        frame_buttons.pack(pady=5)
+
+        # Select directory button
+        tk.Button(
+            frame_buttons,
+            text='Select Directory',
+            command=self.select_directory,
+            bg='#555555',
+            fg='white'
+        ).grid(row=0, column=0, padx=5)
+
+        # Sort files button
+        tk.Button(
+            frame_buttons,
+            text='Sort Files',
+            command=self.start_sorting,
+            bg='#555555',
+            fg='white'
+        ).grid(row=0, column=1, padx=5)
+
+    def select_directory(self):
+        directory = filedialog.askdirectory()
+        if directory:
+            self.entry.delete(0, tk.END)
+            self.entry.insert(0, directory)
+            logging.info(f"Selected directory: {directory}")
+
+    def start_sorting(self):
+        directory = self.entry.get()
+        if not directory:
+            messagebox.showwarning("Warning", "Please select a directory first")
+            return
+            
+        try:
+            sort_files_by_parameters(
+                directory,
+                NEURALNETS_EXTENSIONS,
+                INFO_EXTENSION,
+                PREVIEW_EXTENSIONS
+            )
+            messagebox.showinfo("Success", "File sorting completed")
+        except Exception as e:
+            logging.error(f"Error during sorting: {e}")
+            messagebox.showerror("Error", f"An error occurred: {str(e)}")
+
+    def run(self):
+        self.root.mainloop()
 
 def main():
-    """Set up the tkinter GUI and start the sorter."""
-    root = tk.Tk()
-    root.title('Parameter-based File Organizer (Debug Mode)')
-    root.configure(bg='#333333')
-
-    # Entry field: Shows the target directory (default empty)
-    entry = tk.Entry(root, width=60, bg='#666666', fg='white')
-    entry.pack(padx=10, pady=10)
-
-    # Frame for the buttons
-    frame_buttons = tk.Frame(root, bg='#333333')
-    frame_buttons.pack(pady=5)
-
-    # Button to select directory
-    select_button = tk.Button(
-        frame_buttons,
-        text='Select Directory',
-        command=lambda: select_directory(entry),
-        bg='#555555',
-        fg='white'
-    )
-    select_button.grid(row=0, column=0, padx=5)
-
-    # Button to start sorting the files
-    sort_button = tk.Button(
-        frame_buttons,
-        text='Sort Files',
-        command=lambda: sort_files_by_parameters(
-            entry.get(), NEURALNETS_EXTENSIONS, INFO_EXTENSION, PREVIEW_EXTENSION
-        ),
-        bg='#555555',
-        fg='white'
-    )
-    sort_button.grid(row=0, column=1, padx=5)
-
-    root.mainloop()
+    logging.info("Starting application")
+    app = FileOrganizerGUI()
+    app.run()
 
 if __name__ == '__main__':
     main()
