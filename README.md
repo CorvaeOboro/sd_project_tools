@@ -1,17 +1,28 @@
-# sd_project_tools
-- stable diffusion project tools , focused on batch processing image generation variants . 
+# diffusion_project_tools
+-  diffusion project tools , focused on batch processing image generation variants . 
 - a collection of tools for interacting with image synthesis projects , organizing , reviewing , and generating . 
 
 # install
 - install python 3.10
-- [download sd_project_tools](https://github.com/CorvaeOboro/sd_project_tools/archive/refs/heads/master.zip)
-- pip install -r [requirements.txt](https://github.com/CorvaeOboro/sd_project_tools/blob/main/requirements.txt)
+- [download diffusion_project_tools](https://github.com/CorvaeOboro/sd_project_tools/archive/refs/heads/master.zip)
+- quick install using [00_install_and_launch.bat](https://github.com/CorvaeOboro/sd_project_tools/blob/main/00_install_and_launch.bat) = it creates an isolated local Python virtual environment and installs the [requirements.txt](https://github.com/CorvaeOboro/sd_project_tools/blob/main/requirements.txt) into it , then runs launcher tool ui to  launch any of the project tools shown below .
+
+or manually install:
+- create a virtual environment: `python -m venv venv`
+- activate the virtual environment:
+    - Windows: `venv\Scripts\activate`
+    - macOS/Linux: `source venv/bin/activate`
+- install requirements: `pip install -r requirements.txt`
+- run [launch_tools.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/launch_tools.py)
+
+# Launcher
+- [launch_tools.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/launch_tools.py) = Central launcher for all project tools with debug mode option. Provides a unified interface for accessing all GUIs and scripts.
 
 # Review and Ranking tools
-- [image_review_and_rank.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank.py) = simple image viewer from a folderpath , quickly rank images into subfolders using 1,2, or 3 . navigate with arrows . view as tiled texture with T 
-- [image_review_and_rank_multi.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi.py) = multi-folder image reviewer with basic ranking functionality
 - [image_review_and_rank_multi_project.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi_project.py) = project image reviewer , quickly rank images into subfolders using left click = 1 and right click = 2 , colorizes by amount 
  <a href="https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi_project.py"> <img src="/docs/image_review_and_rank_multi_project.png?raw=true" height="200" /> </a>
+- [image_review_and_rank.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank.py) = simple image viewer from a folderpath , quickly rank images into subfolders using 1,2, or 3 . navigate with arrows . view as tiled texture with T 
+- [image_review_and_rank_multi.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi.py) = multi-folder image reviewer with basic ranking functionality
 
 # ComfyUI custom nodes
 - [LoRA Strength Variants](/comfyui/ComfyUI_OBORO_LoraStrengthVariants/lora_strength_variants.py) = Processes LoRA strings with options to randomize Strength or highlight random LoRAs , within a maximum total and individual strength limits
@@ -20,13 +31,15 @@
 - [Load Image FilePath Out](/comfyui/ComfyUI_OBORO_LoadImageFilePathOut/load_image_filepath_out.py) = Similar to the load image node, additionaly outputs the filepath and folderpath of the loaded image to strings
 - [Load Text File Graceful](/comfyui/ComfyUI_OBORO_LoadTextFileGraceful/load_text_file_graceful.py) = Loads text as string , handling invalid files gracefully without crashing
 
-# checkpoint info
-- [sd_civitai_info_get.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/sd_civitai_info_get.py) = gets info and preview for model checkpoints and LoRAs , similar to webui civitai helper but standalone
-- [sd_sort_civitai_files.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/sd_sort_civitai_files.py) = sorts model checkpoints and LoRAs based on the info from corresponding civitai info , models by base model , then by type
+# tensor info and sorting
+- [tensor_sort_civitai_files.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/sd_sort_civitai_files.py) = sorts model checkpoints and LoRAs based on the info from corresponding civitai info , models by base model , then by type
+- [tensor_info_civitai_get.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tensor_info_civitai_get.py) = sorts model checkpoints and LoRAs based on the civitai info, models by base model, then by type such as LoRA
+- [tensor_sort_civitai_by_category.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tensor_sort_civitai_by_category.py) = sorts model checkpoints and LoRAs based on the category "nsfw" and "poi" in corresponding civitai info
 
 # project tools
 - [gen_project_prompt_entry.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_project_prompt_entry.py) = GUI dashboard for managing project prompts and metadata, with support for SDXL and SD1.5 positive/negative prompts
  <a href="https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_project_prompt_entry.py"> <img src="/docs/gen_project_prompt_entry.png?raw=true" height="200" /> </a>
+ 
 
 # image prompt tools
 - [image_text_prompt_tools.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_text_prompt_tools.py) = GUI tool to drag drop image and for prompt management. merge multiple prompts without duplicates, balance prompt strengths, simplify prompt structure (remove parentheses), scale LoRA strengths to target maximum, 
@@ -35,8 +48,12 @@
 
 # video tools
 - [video_clip_marker.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_clip_marker.py) = tool for marking and processing video clips
-- [video_to_image_composite.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_to_image_composite.py) = converts video frames to composite images
+- [video_combine.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_combine.py) = GUI tool for combining videos, adjusting speed, removing first frames, and batch processing video folders. Uses ffmpeg, supports timeline editing,
+- [video_add_audio.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_add_audio.py) = Add audio to a video file using ffmpeg and ffprobe. Supports both GUI and CLI modes. Drag-and-drop interface, batch processing, . Requires ffmpeg and ffprobe.
+- [video_place_in_image_composite.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_place_in_image_composite.py) = GUI tool to composite a video into a region of an image using template matching and homography. Supports animated WebP export, ping-pong looping, and dark mode.
 - [video_webp_pingpong.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_webp_pingpong.py) = creates ping-pong WebP animations from video files
+- [video_to_image_composite.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_to_image_composite.py) = converts video frames to composite images
+- [image_psd_to_timelapse_anim.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_psd_to_timelapse_anim.py) = Converts PSD layers to timelapse animations, UI and CLI, exports to video gif or webp or webm. updated to use [image_psd_to_timelapse_export.jsx](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_psd_to_timelapse_export.jsx) a photoshop javascript to do the exporting faster 
 
 # auto1111 webui project workflow
 earlier versions of this project utilized the auto1111 webui , these are examples of that workflow:

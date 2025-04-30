@@ -1,7 +1,9 @@
-# SORT CIVITAI FILES
-# sort the safetensors based on the civitai.info (created by auto1111 extension - civitai helper)
-# sorts existing structure of folders into basemodel and type subfolders
-# Checkpoints, LORA, LoCon, TextualInversion, separated by parent BaseModelType (SD 1.5, SDXL)
+"""
+SORT CIVITAI FILES
+sort the safetensors based on the civitai.info (created by auto1111 extension - civitai helper)
+sorts existing structure of folders into basemodel and type subfolders
+Checkpoints, LORA, LoCon, TextualInversion, separated by parent BaseModelType (SD 1.5, SDXL)
+"""
 import os
 import json
 import shutil
