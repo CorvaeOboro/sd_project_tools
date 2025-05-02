@@ -67,9 +67,9 @@ TOOL_CONFIG = {
     "Model Info and Sort": { 
         "color": "#4a7f7f", 
         "tools": [
-            {"file": "sd_civitai_info_get.py", "label": "Civitai Info Get", "icon": "", "color": "#3f6b6b", "size_priority": 0},
-            {"file": "sd_civitai_sort_by_type.py", "label": "Sort by Type", "icon": "", "color": "#6f9f9f", "size_priority": 0},
-            {"file": "sd_sort_civitai_files.py", "label": "Sort Civitai Files", "icon": "", "color": "#5a8a8a", "size_priority": 0},
+            {"file": "tensor_info_civitai_get.py", "label": "Tensor Info Get", "icon": "", "color": "#3f6b6b", "size_priority": 0},
+            {"file": "tensor_sort_civitai_files.py", "label": "Sort Civitai Files", "icon": "", "color": "#5a8a8a", "size_priority": 0},
+            {"file": "tensor_sort_civitai_by_category.py", "label": "Sort by Category", "icon": "", "color": "#6f9f9f", "size_priority": 0},
         ]
     },
     "Video": { 
@@ -92,6 +92,12 @@ TOOL_CONFIG = {
             {"file": "lora_variants.py", "label": "LoRA Variants", "icon": "", "color": "#60609f", "size_priority": 0},
             {"file": "gen_batch_prompts_in_projects.py", "label": "Batch Prompts", "icon": "", "color": "#45456a", "size_priority": 0},
             {"file": "gen_image_variant_grid_explore.py", "label": "Variant Grid Explore", "icon": "", "color": "#55558f", "size_priority": 0},
+        ]
+    },
+    "Audio Tools": {
+        "color": "#8f6a5f",
+        "tools": [
+            {"file": "audio_hotkey_organizer.py", "label": "Audio Hotkey Organizer", "icon": "", "color": "#bf8f80", "size_priority": 1}
         ]
     }
 }

@@ -170,3 +170,6 @@ logs/
 image_review_settings.json
 sd_civitai_info_get_settings.json
 sd_civitai_info_get.bat
+audio_hotkey_organizer.bat
+audio_hotkey_organizer.json
+vosk-model-en-us-0.42-gigaspeech/

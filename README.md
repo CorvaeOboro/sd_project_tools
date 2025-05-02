@@ -25,6 +25,7 @@ or manually install:
 - [image_review_and_rank_multi.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi.py) = multi-folder image reviewer with basic ranking functionality
 
 # ComfyUI custom nodes
+located in /comfyui/ folder , copy into comfyui custom_nodes  to install
 - [LoRA Strength Variants](/comfyui/ComfyUI_OBORO_LoraStrengthVariants/lora_strength_variants.py) = Processes LoRA strings with options to randomize Strength or highlight random LoRAs , within a maximum total and individual strength limits
 - [Save Image Extended FolderPath](/comfyui/ComfyUI_OBORO_SaveImageExtendedFolderPath/save_image_extended_folderpath.py) = Save image of external folder path ( requires editing comfy ui folder_paths.py )
 - [String To String Safe For Filename](/comfyui/ComfyUI_OBORO_StringToStringSafeForFilename/string_safe_for_filename.py) = Converts text into filename-safe text by replacing invalid and unfavored characters.
@@ -39,7 +40,6 @@ or manually install:
 # project tools
 - [gen_project_prompt_entry.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_project_prompt_entry.py) = GUI dashboard for managing project prompts and metadata, with support for SDXL and SD1.5 positive/negative prompts
  <a href="https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_project_prompt_entry.py"> <img src="/docs/gen_project_prompt_entry.png?raw=true" height="200" /> </a>
- 
 
 # image prompt tools
 - [image_text_prompt_tools.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_text_prompt_tools.py) = GUI tool to drag drop image and for prompt management. merge multiple prompts without duplicates, balance prompt strengths, simplify prompt structure (remove parentheses), scale LoRA strengths to target maximum, 
@@ -54,6 +54,9 @@ or manually install:
 - [video_webp_pingpong.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_webp_pingpong.py) = creates ping-pong WebP animations from video files
 - [video_to_image_composite.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_to_image_composite.py) = converts video frames to composite images
 - [image_psd_to_timelapse_anim.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_psd_to_timelapse_anim.py) = Converts PSD layers to timelapse animations, UI and CLI, exports to video gif or webp or webm. updated to use [image_psd_to_timelapse_export.jsx](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_psd_to_timelapse_export.jsx) a photoshop javascript to do the exporting faster 
+
+# audio tools
+- [audio_hotkey_organizer.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/audio_hotkey_organizer.py) = GUI tool for offline speech recognition (using Vosk) to trigger hotkeys or move selected files in Windows Explorer using spoken commands. Supports phonetic matching, CSV/JSON action management, hotkey execution, file moving with optional backup, and a Tkinter-based UI. Requires the [Vosk speech model](https://alphacephei.com/vosk/models)
 
 # auto1111 webui project workflow
 earlier versions of this project utilized the auto1111 webui , these are examples of that workflow:
