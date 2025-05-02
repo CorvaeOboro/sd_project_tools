@@ -1,8 +1,13 @@
-# IMAGE PSD TO TIMELAPSE BATCH FOLDER
-# make a timelapse video from PSD by layers 
-# for each PSD found create a temp resized version , then for each layer save a list of the visibility , hide all the layers then make visible one at compounding the layer stack 
-# EXAMPLE: python IMAGE_PSD_TO_GIF_FOLDER.py --input="D:\CODE\IMAGE_PSD_TO_GIF\TEST" --export_layered --make_gif
-# current speed for 1000 pixel height psd of 600 layers is 1.5hour , 867 is 4hour , each layer iteration makes the process take longer ( starting at 3s per layer to 30s )
+"""
+IMAGE PSD TO TIMELAPSE BATCH FOLDER
+makes a timelapse video from PSD by layers 
+for each PSD found create a temp resized version , then for each layer save a list of the visibility , hide all the layers then make visible one at compounding the layer stack 
+opens ui if no cli args specified 
+EXAMPLE: python IMAGE_PSD_TO_GIF_FOLDER.py --input="D:\CODE\IMAGE_PSD_TO_GIF\TEST" --export_layered --make_gif
+latest version uses instead the .jsx in  photoshop to export layers for speed 
+previouly using psd-tools for 1000 pixel height psd of 600 layers was 1.5hour , 867 layers was 4hour , each layer iteration makes the process take longer ( starting at 3s per layer to 30s )
+using the .jsx script in photoshop is now 2-3minutes for 600 layers and scales linearly
+"""
 #//==============================================================================
 import os # filepaths
 #import numpy as np # math

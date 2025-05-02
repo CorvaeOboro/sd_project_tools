@@ -1,3 +1,5 @@
+<img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/sd_project_tools_header_long.png?raw=true" height="120" />
+
 # diffusion_project_tools
 -  diffusion project tools , focused on batch processing image generation variants . 
 - a collection of tools for interacting with image synthesis projects , organizing , reviewing , and generating . 
@@ -16,7 +18,7 @@ or manually install:
 - run [launch_tools.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/launch_tools.py)
 
 # Launcher
-- [launch_tools.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/launch_tools.py) = Central launcher for all project tools with debug mode option. Provides a unified interface for accessing all GUIs and scripts.
+- [launch_tools.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/launch_tools.py) = Central launcher UI for all project tools 
 
 # Review and Ranking tools
 - [image_review_and_rank_multi_project.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi_project.py) = project image reviewer , quickly rank images into subfolders using left click = 1 and right click = 2 , colorizes by amount 
@@ -48,15 +50,17 @@ located in /comfyui/ folder , copy into comfyui custom_nodes  to install
 
 # video tools
 - [video_clip_marker.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_clip_marker.py) = tool for marking and processing video clips
-- [video_combine.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_combine.py) = GUI tool for combining videos, adjusting speed, removing first frames, and batch processing video folders. Uses ffmpeg, supports timeline editing,
-- [video_add_audio.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_add_audio.py) = Add audio to a video file using ffmpeg and ffprobe. Supports both GUI and CLI modes. Drag-and-drop interface, batch processing, . Requires ffmpeg and ffprobe.
-- [video_place_in_image_composite.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_place_in_image_composite.py) = GUI tool to composite a video into a region of an image using template matching and homography. Supports animated WebP export, ping-pong looping, and dark mode.
+- [video_combine.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_combine.py) = GUI tool for combining videos, adjusting speed, removing first frames, and batch processing video folders. Uses ffmpeg
+- [video_add_audio.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_add_audio.py) = quick Add audio to a video file using ffmpeg and ffprobe. Supports both GUI and CLI modes. Drag-and-drop interface.
+- [video_place_in_image_composite.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_place_in_image_composite.py) = GUI tool to composite a video into a region of an image using template matching and homography. 
 - [video_webp_pingpong.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_webp_pingpong.py) = creates ping-pong WebP animations from video files
 - [video_to_image_composite.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_to_image_composite.py) = converts video frames to composite images
 - [image_psd_to_timelapse_anim.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_psd_to_timelapse_anim.py) = Converts PSD layers to timelapse animations, UI and CLI, exports to video gif or webp or webm. updated to use [image_psd_to_timelapse_export.jsx](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_psd_to_timelapse_export.jsx) a photoshop javascript to do the exporting faster 
+- <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/image_psd_to_timelapse_anim.png?raw=true" height="120" />
 
 # audio tools
-- [audio_hotkey_organizer.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/audio_hotkey_organizer.py) = GUI tool for offline speech recognition (using Vosk) to trigger hotkeys or move selected files in Windows Explorer using spoken commands. Supports phonetic matching, CSV/JSON action management, hotkey execution, file moving with optional backup, and a Tkinter-based UI. Requires the [Vosk speech model](https://alphacephei.com/vosk/models)
+- [audio_hotkey_organizer.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/audio_hotkey_organizer.py) = GUI tool for offline speech recognition (using Vosk) to trigger hotkeys or move selected files in Windows Explorer using spoken commands. JSON action management. Requires the [Vosk speech model](https://alphacephei.com/vosk/models)
+- <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/audio_hotkey_organizer.png?raw=true" height="120" />
 
 # auto1111 webui project workflow
 earlier versions of this project utilized the auto1111 webui , these are examples of that workflow:
