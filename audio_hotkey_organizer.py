@@ -1,8 +1,12 @@
 """
 AUDIO HOTKEY ORGANIZER
-speech recognize actions by phonetic closeness to trigger hotkeys or windows operations ,
-actions : moving currently selected files in explorer to a targeted folder 
-actions : trigger hotkey 
+speech recognized by phonetic closeness to trigger "actions" windows operations for file organization
+actions : organize > moving currently selected files in explorer to a targeted folder 
+actions : archive > copy selected files to a backup folder in the same directory 
+actions : 01 or 02 > move selected files to a folder named 01 or 02 in the same directory used for rating
+actions : hotkey > trigger a hotkey 
+JSON stores the different actions and their parameters 'audio_hotkey_organizer.json'
+by default all actioned files are stored to BACKUP folder 
 """
 #//==============================================================================================================
 from vosk import Model, KaldiRecognizer # speech recognition works offline 
@@ -24,7 +28,6 @@ from tkinter import ttk  # Import ttk module
 from tkinter import scrolledtext # ui
 from tkinter import filedialog, messagebox # ui
 from tkinter import scrolledtext, filedialog, messagebox, Listbox # ui
-
 import csv # csv to json
 import json # json stores the actions data
 import Levenshtein  # For calculating string similarity
@@ -32,7 +35,8 @@ import queue  # For audio level monitoring
 import sounddevice as sd  # For capturing audio
 import numpy as np  # For audio processing
 from threading import Lock
-
+import pyttsx3  # For computer-generated voice feedback
+import webbrowser  # For opening URLs
 
 # GLOBAL SETTINGS ===========================================================
 JSON_DATA = 'audio_hotkey_organizer.json'
@@ -178,43 +182,54 @@ def get_selected_files():
 
 #  MOVE FILES {#582,39} =============================================
 # move files based on action parameters
-def move_file(path_start, path_end, backup):
+def move_file(path_start, path_end, backup, action_name=None, action_obj=None):
     selected_files = get_selected_files()
-    print("SELECTED FILES= " + str(selected_files))
+    moved_files = []
+    # Determine folder to open if no files are selected
+    explorer_folder = None
+    if action_obj and isinstance(action_obj, dict):
+        explorer_folder = action_obj.get('explorer_folder')
+    if not explorer_folder:
+        explorer_folder = path_start
+    if not selected_files:
+        try:
+            os.startfile(explorer_folder)
+            if 'app' in globals():
+                app.log_both(f"Opened folder: {explorer_folder}", f"No files selected. Opened: {explorer_folder}")
+        except Exception as e:
+            if 'app' in globals():
+                app.log_both("Could not open folder.", f"Error opening {explorer_folder}: {e}")
+        return
     for current_selected_filepath in selected_files:
         current_selected_filepath = Path(current_selected_filepath)
-
         if not current_selected_filepath.is_file():
             continue
-
         # Create target path
         target_path = Path(path_start) / path_end / current_selected_filepath.name
         os.makedirs(target_path.parent, exist_ok=True)
-
         # Create unique target path
         counter = 1
         while target_path.exists():
             target_path = target_path.parent / f"{target_path.stem}_{counter}{target_path.suffix}"
             counter += 1
-
         # Move file
-        print("MOVE == " + str(current_selected_filepath) + " ****TO****** " + str(target_path))
         shutil.move(str(current_selected_filepath), str(target_path))
-
+        moved_files.append(target_path)
         # Backup if enabled
         if backup:
-            backup_folderpath = Path(BACKUP_FOLDERPATH)  # Ensure this is a Path object
-            os.makedirs(backup_folderpath, exist_ok=True)  # Create backup directory
+            backup_folderpath = Path(BACKUP_FOLDERPATH)
+            os.makedirs(backup_folderpath, exist_ok=True)
             backup_path = backup_folderpath / current_selected_filepath.name
-
-            # Create unique backup file path
             backup_counter = 1
             while backup_path.exists():
                 backup_path = backup_folderpath / f"{current_selected_filepath.stem}_{backup_counter}{current_selected_filepath.suffix}"
                 backup_counter += 1
-
-            print("BACKUP PATH == " + str(backup_path))
             shutil.copy2(str(target_path), str(backup_path))
+    # Concise logging for UI
+    if 'app' in globals():
+        concise = f"{len(moved_files)} file{'s' if len(moved_files)!=1 else ''} moved to {path_end}" if moved_files else "No files moved."
+        full = f"Moved files: {[str(f) for f in moved_files]}"
+        app.log_both(concise, full)
 
 def organize_file_into_folder():
     selected_files = get_selected_files()
@@ -237,6 +252,29 @@ def organize_file_into_folder():
         # Move the file into the newly created folder
         shutil.move(str(file_path), str(new_file_path))
         print(f"Moved {file_path} to {new_file_path}")
+
+def archive_selected_files_to_local_backup():
+    selected_files = get_selected_files()
+    if not selected_files:
+        if 'app' in globals():
+            app.log_both("No files selected for backup.")
+        return
+    # Get the folder of the first selected file
+    base_folder = str(Path(selected_files[0]).parent)
+    today_str = datetime.now().strftime("%Y%m%d")
+    archive_folder = os.path.join(base_folder, "backup", today_str)
+    os.makedirs(archive_folder, exist_ok=True)
+    copied_files = []
+    for file_path in selected_files:
+        src = Path(file_path)
+        if src.is_file():
+            dst = os.path.join(archive_folder, src.name)
+            shutil.copy2(str(src), dst)
+            copied_files.append(dst)
+    if 'app' in globals():
+        concise = f"Archived {len(copied_files)} file{'s' if len(copied_files)!=1 else ''} to {archive_folder}" if copied_files else "No files archived."
+        full = f"Archived files: {[str(f) for f in copied_files]}"
+        app.log_both(concise, full)
 
 # LISTEN {#eee,44} =============================================
 def listen_and_recognize():
@@ -263,7 +301,6 @@ def listen_and_recognize():
         print("Say something!")
         while True:
             sd.sleep(1000)
-
 
 def update_recognition_settings(): 
     # UI Function to update recognition settings
@@ -297,12 +334,20 @@ def execute_action(action):
     # actions are hotkeys or move_files
     if action['press_hotkey']:
         pyautogui.hotkey(*action['hotkey'].split('+'))
-    if action['name'] == "folder":
+        if 'app' in globals():
+            app.log_both(f"Hotkey '{action['hotkey']}' triggered.")
+    if action['name'].lower() == "folder":
         organize_file_into_folder()
-
+    elif action['name'].lower() == "archive":
+        archive_selected_files_to_local_backup()
     else:
-        move_file(action['path_start'], action['path_end'], action['backup'])
-
+        move_file(action['path_start'], action['path_end'], action['backup'], action_name=action.get('name'), action_obj=action)
+    # TTS: Say back the action name if enabled
+    try:
+        if 'app' in globals():
+            app.on_action_triggered(action['name'])
+    except Exception as e:
+        print(f"TTS error: {e}")
 
 def load_actions():
     #load actions from JSON file
@@ -330,111 +375,283 @@ class StdoutRedirector(object):
     def flush(self):
         pass  # No flushing needed
 
-# UI {#486,75} ===========================================
-def display_actions_ui():  # Function to load and display actions in the listbox
-    global actions
-    actions_listbox.delete(0, tk.END)  # Clear existing entries
-    for action in actions:
-        actions_listbox.insert(tk.END, action['name'])
+class AudioHotkeyOrganizerUI:
+    def __init__(self, master, actions, load_actions_func, listen_and_recognize_func, process_recognized_speech_func):
+        self.master = master
+        self.actions = actions
+        self.load_actions_func = load_actions_func
+        self.listen_and_recognize_func = listen_and_recognize_func
+        self.process_recognized_speech_func = process_recognized_speech_func
 
-def update_label(event):  # Update label function
-    global recognized_text_global
-    label.config(text=recognized_text_global)
+        # TTS engine
+        self.tts_engine = pyttsx3.init()
+        self.say_action_enabled = tk.BooleanVar(value=False)
 
-def log_action(action_name):
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    with open("action_log.txt", "a") as log_file:
-        log_file.write(f"{timestamp} - Executed action: {action_name}\n")
+        # Dark mode colors
+        self.DARK_BG = "#23272e"
+        self.DARK_FG = "#e0e0e0"
+        self.DARK_ENTRY_BG = "#1a1d22"
+        self.DARK_ENTRY_FG = "#e0e0e0"
+        self.DARK_BUTTON_BG = "#353b45"
+        self.DARK_BUTTON_FG = "#e0e0e0"
+        self.DARK_HIGHLIGHT = "#3a3f4b"
+        self.DARK_SELECT_BG = "#444a58"
+        self.DARK_SELECT_FG = "#ffffff"
 
-def update_match_threshold():  # Function to update match threshold
-    global MATCH_THRESHOLD
-    try:
-        new_threshold = float(match_threshold_entry.get())
-        MATCH_THRESHOLD = new_threshold
-        status_label.config(text=f"Threshold updated to {MATCH_THRESHOLD}")
-    except ValueError:
-        status_label.config(text="Invalid input for threshold")
+        master.title("Voice Actions")
+        master.configure(bg=self.DARK_BG)
 
-def update_audio_level():
-    if not AUDIO_LEVELS.empty():
-        audio_level = AUDIO_LEVELS.get()
-        audio_level_progress['value'] = audio_level  # Update the progress bar value
-        root.update_idletasks()  # Update the UI to reflect the change
+        # Create three main columns
+        self.left_frame = tk.Frame(master, bg=self.DARK_BG)
+        self.center_frame = tk.Frame(master, bg=self.DARK_BG)
+        self.right_frame = tk.Frame(master, bg=self.DARK_BG)
+        self.left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=8, pady=8)
+        self.center_frame.pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=8)
+        self.right_frame.pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=8)
 
-def mainloop_update():
-    update_audio_level()
-    root.after(1000, mainloop_update)  # Schedule the function to be called every second
+        # LEFT COLUMN: Logging
+        self.concise_log_var = tk.StringVar(value="Ready.")
+        self.concise_log_label = tk.Label(self.left_frame, textvariable=self.concise_log_var, bg=self.DARK_BG, fg="#a8ff60", font=(FONT_NAME, 11, "bold"))
+        self.concise_log_label.pack(pady=(0,4), anchor="w")
+        self.history = scrolledtext.ScrolledText(self.left_frame, height=15, width=50, bg=self.DARK_ENTRY_BG, fg=self.DARK_ENTRY_FG, insertbackground=self.DARK_FG)
+        self.history.pack(fill=tk.BOTH, expand=True)
 
-#//===========================================================================================
+        # CENTER COLUMN: Actions list
+        self.actions_listbox = Listbox(self.center_frame, height=25, width=30, bg=self.DARK_ENTRY_BG, fg=self.DARK_ENTRY_FG, selectbackground=self.DARK_SELECT_BG, selectforeground=self.DARK_SELECT_FG, highlightbackground=self.DARK_HIGHLIGHT)
+        self.actions_listbox.pack(fill=tk.BOTH, expand=True)
+        self.add_action_button = tk.Button(self.center_frame, text="Add Action", command=self.open_add_action_window, bg=self.DARK_BUTTON_BG, fg=self.DARK_BUTTON_FG)
+        self.add_action_button.pack(pady=5)
+        self.actions_listbox.bind("<<ListboxSelect>>", self.update_label)
+
+        # RIGHT COLUMN: Settings
+        # JSON file row
+        json_row = tk.Frame(self.right_frame, bg=self.DARK_BG)
+        tk.Label(json_row, text="Settings:", bg=self.DARK_BG, fg=self.DARK_FG).pack(side=tk.LEFT, padx=(0,4))
+        self.json_path_var = tk.StringVar(value=JSON_DATA)
+        self.json_path_entry = tk.Entry(json_row, textvariable=self.json_path_var, bg=self.DARK_ENTRY_BG, fg=self.DARK_ENTRY_FG, insertbackground=self.DARK_FG, width=28, highlightbackground=self.DARK_HIGHLIGHT)
+        self.json_path_entry.pack(side=tk.LEFT, padx=(0,4))
+        self.load_json_button = tk.Button(json_row, text="Load", command=self.load_json_file, bg=self.DARK_BUTTON_BG, fg=self.DARK_BUTTON_FG)
+        self.load_json_button.pack(side=tk.LEFT, padx=(0,4))
+        self.browse_json_button = tk.Button(json_row, text="Browse", command=self.browse_json_file, bg=self.DARK_BUTTON_BG, fg=self.DARK_BUTTON_FG)
+        self.browse_json_button.pack(side=tk.LEFT)
+        json_row.pack(fill=tk.X, pady=2)
+
+        # Backup folder row
+        backup_row = tk.Frame(self.right_frame, bg=self.DARK_BG)
+        tk.Label(backup_row, text="Backup Folder:", bg=self.DARK_BG, fg=self.DARK_FG).pack(side=tk.LEFT, padx=(0,4))
+        self.backup_folder_var = tk.StringVar(value=BACKUP_FOLDERPATH)
+        self.backup_folder_entry = tk.Entry(backup_row, textvariable=self.backup_folder_var, bg=self.DARK_ENTRY_BG, fg=self.DARK_ENTRY_FG, insertbackground=self.DARK_FG, width=28, highlightbackground=self.DARK_HIGHLIGHT)
+        self.backup_folder_entry.pack(side=tk.LEFT)
+        backup_row.pack(fill=tk.X, pady=2)
+
+        # Vosk model row
+        vosk_row = tk.Frame(self.right_frame, bg=self.DARK_BG)
+        tk.Label(vosk_row, text="Vosk Model:", bg=self.DARK_BG, fg=self.DARK_FG).pack(side=tk.LEFT, padx=(0,4))
+        self.vosk_model_var = tk.StringVar(value="./vosk-model-en-us-0.42-gigaspeech")
+        self.vosk_model_entry = tk.Entry(vosk_row, textvariable=self.vosk_model_var, bg=self.DARK_ENTRY_BG, fg=self.DARK_ENTRY_FG, insertbackground=self.DARK_FG, width=28, highlightbackground=self.DARK_HIGHLIGHT)
+        self.vosk_model_entry.pack(side=tk.LEFT, padx=(0,4))
+        self.vosk_download_button = tk.Button(vosk_row, text="Download", command=self.open_vosk_download, bg=self.DARK_BUTTON_BG, fg=self.DARK_BUTTON_FG)
+        self.vosk_download_button.pack(side=tk.LEFT)
+        vosk_row.pack(fill=tk.X, pady=2)
+
+        # Match threshold row
+        threshold_row = tk.Frame(self.right_frame, bg=self.DARK_BG)
+        tk.Label(threshold_row, text="Match Threshold:", bg=self.DARK_BG, fg=self.DARK_FG).pack(side=tk.LEFT, padx=(0,4))
+        self.match_threshold_entry = tk.Entry(threshold_row, bg=self.DARK_ENTRY_BG, fg=self.DARK_ENTRY_FG, insertbackground=self.DARK_FG, width=8, highlightbackground=self.DARK_HIGHLIGHT)
+        self.match_threshold_entry.insert(0, str(MATCH_THRESHOLD))
+        self.match_threshold_entry.pack(side=tk.LEFT, padx=(0,4))
+        self.update_threshold_button = tk.Button(threshold_row, text="Update", bg=self.DARK_BUTTON_BG, fg=self.DARK_BUTTON_FG, command=self.update_match_threshold)
+        self.update_threshold_button.pack(side=tk.LEFT)
+        threshold_row.pack(fill=tk.X, pady=2)
+
+        # Checkbox for TTS feedback
+        tts_row = tk.Frame(self.right_frame, bg=self.DARK_BG)
+        self.say_action_checkbox = tk.Checkbutton(
+            tts_row, text="Say back action name", variable=self.say_action_enabled,
+            bg=self.DARK_BG, fg=self.DARK_FG, selectcolor=self.DARK_ENTRY_BG, activebackground=self.DARK_BG, activeforeground=self.DARK_FG
+        )
+        self.say_action_checkbox.pack(side=tk.LEFT)
+        tts_row.pack(fill=tk.X, pady=2)
+
+        # Label for recognized text
+        self.label = tk.Label(self.right_frame, text="Listening...", font=(FONT_NAME, 12), height=2, width=32, bg=self.DARK_BG, fg=self.DARK_FG)
+        self.label.pack(pady=8)
+
+        # Status label
+        self.status_label = tk.Label(self.right_frame, text="", bg=self.DARK_BG, fg=self.DARK_FG)
+        self.status_label.pack(pady=2)
+
+        # Progress bar for audio level
+        self.audio_level_progress = ttk.Progressbar(self.right_frame, orient="horizontal", length=200, mode="determinate")
+        self.audio_level_progress.pack(pady=5)
+        self._style_dark_progressbar()
+
+        # Redirect stdout to history widget
+        sys.stdout = StdoutRedirector(self.history)
+
+        # Initial population of actions
+        self.display_actions_ui()
+
+        # Start periodic UI updates
+        self.master.after(1000, self.mainloop_update)
+
+    def load_json_file(self):
+        global JSON_DATA
+        JSON_DATA = self.json_path_var.get()
+        try:
+            self.actions = load_actions()
+            self.display_actions_ui()
+            self.status_label.config(text=f"Loaded actions from {JSON_DATA}")
+        except Exception as e:
+            self.status_label.config(text=f"Error loading JSON: {e}")
+
+    def browse_json_file(self):
+        file_path = filedialog.askopenfilename(title="Select JSON File", filetypes=[("JSON files", "*.json")])
+        if file_path:
+            self.json_path_var.set(file_path)
+            self.load_json_file()
+
+    def open_vosk_download(self):
+        webbrowser.open_new_tab("https://alphacephei.com/vosk/models")
+
+    def get_backup_folder(self):
+        return self.backup_folder_var.get()
+
+    def get_vosk_model_path(self):
+        return self.vosk_model_var.get()
+
+    def speak_action_name(self, action_name):
+        self.tts_engine.say(action_name)
+        self.tts_engine.runAndWait()
+
+    def on_action_triggered(self, action_name):
+        if self.say_action_enabled.get():
+            self.speak_action_name(action_name)
+
+    def _style_dark_progressbar(self):
+        style = ttk.Style()
+        style.theme_use('clam')
+        style.configure("TProgressbar", troughcolor=self.DARK_ENTRY_BG, background="#3a7afe", bordercolor=self.DARK_HIGHLIGHT, lightcolor=self.DARK_HIGHLIGHT, darkcolor=self.DARK_HIGHLIGHT)
+
+    def display_actions_ui(self):
+        self.actions_listbox.delete(0, tk.END)
+        for action in self.actions:
+            self.actions_listbox.insert(tk.END, action['name'])
+
+    def update_label(self, event=None):
+        self.label.config(text=recognized_text_global)
+
+    def log_action(self, action_name):
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        with open("action_log.txt", "a") as log_file:
+            log_file.write(f"{timestamp} - Executed action: {action_name}\n")
+
+    def update_match_threshold(self):
+        global MATCH_THRESHOLD
+        try:
+            new_threshold = float(self.match_threshold_entry.get())
+            MATCH_THRESHOLD = new_threshold
+            self.status_label.config(text=f"Threshold updated to {MATCH_THRESHOLD}")
+        except ValueError:
+            self.status_label.config(text="Invalid input for threshold")
+
+    def update_audio_level(self):
+        if not AUDIO_LEVELS.empty():
+            audio_level = AUDIO_LEVELS.get()
+            self.audio_level_progress['value'] = audio_level
+            self.master.update_idletasks()
+
+    def mainloop_update(self):
+        self.update_audio_level()
+        self.master.after(1000, self.mainloop_update)
+
+    def log_concise(self, message):
+        self.concise_log_var.set(message)
+
+    def log_full(self, message):
+        self.history.insert(tk.END, message + "\n")
+        self.history.see(tk.END)
+
+    def log_both(self, concise, full=None):
+        self.log_concise(concise)
+        if full is not None:
+            self.log_full(full)
+        else:
+            self.log_full(concise)
+
+    def open_add_action_window(self):
+        win = tk.Toplevel(self.master)
+        win.title("Add New Action")
+        win.configure(bg=self.DARK_BG)
+
+        # Field labels and entries
+        fields = [
+            ("Name", "name"),
+            ("Phonetic Words (comma-separated)", "phonetic_words"),
+            ("Enabled (true/false)", "enabled"),
+            ("Hotkey (e.g. ctrl+N)", "hotkey"),
+            ("Path Start", "path_start"),
+            ("Path End", "path_end"),
+            ("Backup (true/false)", "backup"),
+            ("Press Hotkey (true/false)", "press_hotkey"),
+            ("Explorer Folder (optional)", "explorer_folder")
+        ]
+        entries = {}
+        for idx, (label, key) in enumerate(fields):
+            tk.Label(win, text=label, bg=self.DARK_BG, fg=self.DARK_FG).grid(row=idx, column=0, sticky='e', padx=4, pady=2)
+            entry = tk.Entry(win, bg=self.DARK_ENTRY_BG, fg=self.DARK_ENTRY_FG, insertbackground=self.DARK_FG, width=30, highlightbackground=self.DARK_HIGHLIGHT)
+            entry.grid(row=idx, column=1, padx=4, pady=2)
+            entries[key] = entry
+        # Set some defaults
+        entries['enabled'].insert(0, 'true')
+        entries['backup'].insert(0, 'true')
+        entries['press_hotkey'].insert(0, 'false')
+
+        def submit():
+            try:
+                action = {
+                    "name": entries['name'].get().strip(),
+                    "phonetic_words": [w.strip() for w in entries['phonetic_words'].get().split(',') if w.strip()],
+                    "enabled": entries['enabled'].get().strip().lower() in ['true', '1', 'yes', 'on', 'enabled'],
+                    "hotkey": entries['hotkey'].get().strip(),
+                    "path_start": entries['path_start'].get().strip(),
+                    "path_end": entries['path_end'].get().strip(),
+                    "backup": entries['backup'].get().strip().lower() in ['true', '1', 'yes', 'on', 'enabled'],
+                    "press_hotkey": entries['press_hotkey'].get().strip().lower() in ['true', '1', 'yes', 'on', 'enabled']
+                }
+                explorer_folder_val = entries['explorer_folder'].get().strip()
+                if explorer_folder_val:
+                    action['explorer_folder'] = explorer_folder_val
+                # Append to JSON file
+                with open(JSON_DATA, 'r') as f:
+                    data = json.load(f)
+                data.append(action)
+                with open(JSON_DATA, 'w') as f:
+                    json.dump(data, f, indent=4)
+                self.actions = data
+                self.display_actions_ui()
+                self.log_both(f"Added action '{action['name']}'", f"Added: {action}")
+                win.destroy()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to add action: {e}")
+
+        submit_btn = tk.Button(win, text="Add", command=submit, bg=self.DARK_BUTTON_BG, fg=self.DARK_BUTTON_FG)
+        submit_btn.grid(row=len(fields), column=0, columnspan=2, pady=8)
+
 if __name__ == "__main__":
     load_actions()
     # Start the speech recognition thread
     thread = Thread(target=listen_and_recognize)
     thread.daemon = True
     thread.start()
-    # UI Tkinter setup ===================================================
-    # Dark theme colors
-    DARK_BG = "#333333"
-    DARK_FG = "#EEEEEE"
-    DARK_BUTTON_BG = "#555555"
 
     root = tk.Tk()
-    root.title("Voice Actions")
-    root.configure(bg=DARK_BG)
-
-    # Creating widgets for the UI
-    label = tk.Label(root, text="Listening...", font=(FONT_NAME, 12), height=2, width=50, bg=DARK_BG, fg=DARK_FG)
-    label.pack(pady=20)
-
-    # History list
-    history = scrolledtext.ScrolledText(root, height=15, width=50, bg=DARK_BG, fg=DARK_FG)
-    history.pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=10)
-
-    # Actions list
-    actions_listbox = Listbox(root, height=15, width=50, bg=DARK_BG, fg=DARK_FG)
-    actions_listbox.pack(side=tk.RIGHT, fill=tk.Y, padx=10, pady=10)
-    display_actions_ui()  # Populate actions listbox
-
-    # Add a button for CSV to JSON conversion
-    convert_button = tk.Button(root, text="Convert CSV to JSON", command=csv_to_json_ui)
-    convert_button.pack(pady=10)
-
-    recognition_timeout_label = tk.Label(root, text="Recognition Timeout (seconds):", font=(FONT_NAME, FONT_SIZE))
-    recognition_timeout_label.pack()
-
-    recognition_timeout_entry = tk.Entry(root, font=(FONT_NAME, FONT_SIZE))
-    recognition_timeout_entry.pack()
-    recognition_timeout_entry.insert(0, str(recognition_timeout))  # Default value
-
-    update_timeout_button = tk.Button(root, text="Update Timeout", command=update_recognition_settings)
-    update_timeout_button.pack()
-
-    status_label = tk.Label(root, text="", font=(FONT_NAME, FONT_SIZE))
-    status_label.pack()
-
-    audio_level_label = tk.Label(root, text="Audio Level:", font=(FONT_NAME, 10))
-    audio_level_label.pack()
-
-    # Create a Progressbar widget
-    audio_level_progress = ttk.Progressbar(root, orient="horizontal", length=200, mode='determinate')
-    audio_level_progress.pack()
-
-    match_threshold_label = tk.Label(root, text="Match Threshold:", font=(FONT_NAME, FONT_SIZE))
-    match_threshold_label.pack()
-
-    match_threshold_entry = tk.Entry(root, font=(FONT_NAME, FONT_SIZE))
-    match_threshold_entry.pack()
-    match_threshold_entry.insert(0, str(MATCH_THRESHOLD))  # Default value
-
-    update_threshold_button = tk.Button(root, text="Update Threshold", command=update_match_threshold)
-    update_threshold_button.pack()
-
-    python_log = scrolledtext.ScrolledText(root, height=10, width=50)
-    python_log.pack(pady=10)
-    sys.stdout = StdoutRedirector(python_log)
-
-    # Bind the custom event to the update_label function
-    root.bind("<<UpdateLabel>>", update_label)
-
-    mainloop_update()
+    global app
+    app = AudioHotkeyOrganizerUI(
+        root,
+        actions,
+        load_actions_func=load_actions,
+        listen_and_recognize_func=listen_and_recognize,
+        process_recognized_speech_func=process_recognized_speech
+    )
     root.mainloop()

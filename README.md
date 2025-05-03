@@ -1,12 +1,13 @@
-<img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/sd_project_tools_header_long.png?raw=true" height="120" />
+<p align="center">
+  <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/sd_project_tools_header_long.png?raw=true" height="120" /> 
+</p>
 
 # diffusion_project_tools
--  diffusion project tools , focused on batch processing image generation variants . 
 - a collection of tools for interacting with image synthesis projects , organizing , reviewing , and generating . 
 
 # install
 - install python 3.10
-- [download diffusion_project_tools](https://github.com/CorvaeOboro/sd_project_tools/archive/refs/heads/master.zip)
+- [download diffusion_project_tools](https://github.com/CorvaeOboro/sd_project_tools/archive/refs/heads/master.zip) and extract to a folder
 - quick install using [00_install_and_launch.bat](https://github.com/CorvaeOboro/sd_project_tools/blob/main/00_install_and_launch.bat) = it creates an isolated local Python virtual environment and installs the [requirements.txt](https://github.com/CorvaeOboro/sd_project_tools/blob/main/requirements.txt) into it , then runs launcher tool ui to  launch any of the project tools shown below .
 
 or manually install:
@@ -22,7 +23,7 @@ or manually install:
 
 # Review and Ranking tools
 - [image_review_and_rank_multi_project.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi_project.py) = project image reviewer , quickly rank images into subfolders using left click = 1 and right click = 2 , colorizes by amount 
- <a href="https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi_project.py"> <img src="/docs/image_review_and_rank_multi_project.png?raw=true" height="200" /> </a>
+ <a href="https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi_project.py"> <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main//docs/image_review_and_rank_multi_project.png?raw=true" height="200" /> </a>
 - [image_review_and_rank.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank.py) = simple image viewer from a folderpath , quickly rank images into subfolders using 1,2, or 3 . navigate with arrows . view as tiled texture with T 
 - [image_review_and_rank_multi.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi.py) = multi-folder image reviewer with basic ranking functionality
 
@@ -40,8 +41,8 @@ located in /comfyui/ folder , copy into comfyui custom_nodes  to install
 - [tensor_sort_civitai_by_category.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tensor_sort_civitai_by_category.py) = sorts model checkpoints and LoRAs based on the category "nsfw" and "poi" in corresponding civitai info
 
 # project tools
-- [gen_project_prompt_entry.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_project_prompt_entry.py) = GUI dashboard for managing project prompts and metadata, with support for SDXL and SD1.5 positive/negative prompts
- <a href="https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_project_prompt_entry.py"> <img src="/docs/gen_project_prompt_entry.png?raw=true" height="200" /> </a>
+- [gen_project_prompt_entry.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_project_prompt_entry.py) = GUI dashboard for managing multiple item prompts , support for SDXL and SD1.5 positive/negative prompts and FLUX and VIDEO prompts
+- <a href="https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_project_prompt_entry.py"> <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main//docs/gen_project_prompt_entry.png?raw=true" height="200" /> </a>
 
 # image prompt tools
 - [image_text_prompt_tools.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_text_prompt_tools.py) = GUI tool to drag drop image and for prompt management. merge multiple prompts without duplicates, balance prompt strengths, simplify prompt structure (remove parentheses), scale LoRA strengths to target maximum, 
