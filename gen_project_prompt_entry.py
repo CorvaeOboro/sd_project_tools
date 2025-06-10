@@ -1,5 +1,5 @@
 """
-Asset DataEntry UI for Stable Diffusion Project Management
+Asset Prompt Entry UI for Stable Diffusion Project 
 
 A GUI tool for managing and organizing projects with multiple Stable Diffusion prompt files.
 a visual interface for prompt entry and review.
@@ -7,7 +7,7 @@ a visual interface for prompt entry and review.
 Features:
     - Visual dashboard displaying asset PSD preview and their associated prompts in prompt subfolder
     - prompt .md text files for :
-        * SDXL positive negative , SD1.5 positive negative  Flux , Video  , Florence2 generated 
+        * SDXL positive + negative , SD1.5 positive + negative  Flux , Video  , Florence2 generated 
     - Support for both flat and hierarchical file organization
 
 Usage:
@@ -19,38 +19,40 @@ Usage:
 
 TypeA Project Structure psds are in main folder :
     project_folder/
-    ├── example.psd                 # Source PSD file
-    ├── example/                    #  Asset subfolder
-    │   ├── prompt/                 # Prompt files subfolder
-    │   │   ├── prompt_sdxl.md     # SDXL positive prompts
-    │   │   ├── prompt_sdxl_negative.md     # SDXL negative prompts
-    │   │   ├── prompt_sd15.md     # SD1.5 positive prompts
-    │   │   ├── prompt_sd15_negative.md     # SD1.5 negative prompts
-    │   │   ├── prompt_flux.md         # Additional notes/metadata
-    │   │   ├── prompt_video.md        # Video prompts
-    │   │   └── prompt_florence.md     # Florence generated prompts
-    ├── exampleB.psd                 # Source PSD file
-    ├── exampleB/                    # Asset subfolder
-    │   ├── prompt/                 # Prompt files subfolder
-    │   │   ├── prompt_sdxl.md     # SDXL positive prompts
+    ├── item_example.psd                     # Source PSD file
+    ├── item_example/                        # Asset subfolder
+    │   ├── prompt/                          # Prompt files subfolder
+    │   │   ├── prompt_sdxl.md               # SDXL positive prompts
+    │   │   ├── prompt_sdxl_negative.md      # SDXL negative prompts
+    │   │   ├── prompt_sd15.md               # SD1.5 positive prompts
+    │   │   ├── prompt_sd15_negative.md      # SD1.5 negative prompts
+    │   │   ├── prompt_flux.md               # Additional notes/metadata
+    │   │   ├── prompt_video.md              # Video prompts
+    │   │   └── prompt_florence.md           # Florence generated prompts
+    ├── item_exampleB.psd                    # Source PSD file
+    ├── item_exampleB/                       # Asset subfolder
+    │   ├── prompt/                          # Prompt files subfolder
+    │   │   ├── prompt_sdxl.md               # SDXL positive prompts
+    │   │   ├── ...                          # continued
 
 TypeB Project Structure psds are in subfolders:
     project_folder/
-    ├── example/                    #  Asset subfolder
-    │   ├── example.psd            # Source PSD file
-    │   ├── prompt/                # Prompt files subfolder
-    │   │   ├── prompt_sdxl.md     # SDXL positive prompts
-    ├── exampleB/                    #  Asset subfolder
-    │   ├── exampleB.psd            # Source PSD file
-    │   ├── prompt/                # Prompt files subfolder
-    │   │   ├── prompt_sdxl.md     # SDXL positive prompts
+    ├── item_example/                        # Asset subfolder
+    │   ├── item_example.psd                 # Source PSD file
+    │   ├── prompt/                          # Prompt files subfolder
+    │   │   ├── prompt_sdxl.md               # SDXL positive prompts
+    │   │   ├── ...                          # continued
+    ├── item_exampleB/                       # Asset subfolder
+    │   ├── item_exampleB.psd                # Source PSD file
+    │   ├── prompt/                          # Prompt files subfolder
+    │   │   ├── prompt_sdxl.md               # SDXL positive prompts
+    │   │   ├── ...                          # continued
 
 FEATURES TODO :
-- [ ] clicking on an image entry should expand the text entry fields for it making them take up the full height
-- [ ] folders and settings per that folder such as if the psd are in root folder are saved as a local json for quick load
-- [ ] use florence and other llms to add to and modify a prompt toward a style guide and examples fitted for the 
+- [ ] use florence and other llms to add to and modify a prompt toward a style guide and examples per the modeltype
 - [ ] separate the UI into its own class for modularity 
 - [ ] add feature to copy a field but make its activation subtle like double clicking the name
+
 """
 
 import os
@@ -92,6 +94,9 @@ class AssetDataEntryUI(tk.Tk):
         self.folder_var = tk.StringVar(value=default_folder)
         self.input_folder = default_folder
 
+        # StringVar for new entry name
+        self.add_entry_var = tk.StringVar()
+
         # A list to hold asset information
         self.assets_data = []
 
@@ -107,6 +112,24 @@ class AssetDataEntryUI(tk.Tk):
         # -------------------------------
         control_frame = ttk.Frame(self)
         control_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=10)
+
+        # --- Saved Projects UI ---
+        # Project name entry
+        self.project_name_var = tk.StringVar()
+        project_name_entry = ttk.Entry(control_frame, textvariable=self.project_name_var, width=18)
+        project_name_entry.pack(side=tk.LEFT, padx=(0, 3))
+        project_name_entry.insert(0, "ProjectName")
+        # Save button
+        save_project_btn = ttk.Button(control_frame, text="Save Project", command=self.save_current_project_settings)
+        save_project_btn.pack(side=tk.LEFT, padx=(0, 10))
+        # Saved projects buttons frame
+        self.saved_projects_frame = ttk.Frame(control_frame)
+        self.saved_projects_frame.pack(side=tk.LEFT, padx=(0, 12))
+        # Status label
+        self.status_label = ttk.Label(control_frame, text="", foreground="#80ff80", background="black")
+        self.status_label.pack(side=tk.LEFT, padx=(0, 12))
+        # Initialize saved project buttons
+        self.refresh_saved_project_buttons()
 
         # Label + text entry for folder input
         label_input_folder = ttk.Label(control_frame, text="Folder:")
@@ -124,6 +147,13 @@ class AssetDataEntryUI(tk.Tk):
             control_frame, text="Generate MD Files", command=self.on_generate_md_files
         )
         generate_button.pack(side=tk.LEFT, padx=3)
+
+        # --- ADD entry field and button ---
+        add_entry_field = ttk.Entry(control_frame, textvariable=self.add_entry_var, width=20)
+        add_entry_field.pack(side=tk.LEFT, padx=(20,3))
+        add_entry_field.insert(0, "NewEntryName")
+        add_entry_button = ttk.Button(control_frame, text="ADD entry", command=self.on_add_entry)
+        add_entry_button.pack(side=tk.LEFT, padx=3)
 
         # Checkbox to filter only assets with blank .md
         self.show_only_blank_var = tk.BooleanVar(value=False)
@@ -233,6 +263,151 @@ class AssetDataEntryUI(tk.Tk):
         # self.refresh_assets_display()
 
     # ------------------------------------------------------------------------
+    # Add entry logic
+    # ------------------------------------------------------------------------
+    def on_add_entry(self):
+        """
+        Handle the ADD entry button: create new asset folder and stub .psd/.png files, then refresh UI.
+        """
+        entry_name = self.add_entry_var.get().strip()
+        if not entry_name:
+            return
+        # Only allow safe folder/file names (alphanumeric, dash, underscore)
+        import re
+        if not re.match(r'^[\w\- ]+$', entry_name):
+            print("Invalid entry name.")
+            return
+        base_folder = self.folder_var.get().strip()
+        if not base_folder or not os.path.isdir(base_folder):
+            print("No valid project folder loaded.")
+            return
+        psds_in_root = self.psds_in_root_var.get()
+        if psds_in_root:
+            # TypeA: PSD and PNG in root, subfolder for prompts
+            psd_path = os.path.join(base_folder, f"{entry_name}.psd")
+            png_path = os.path.join(base_folder, f"{entry_name}.png")
+            subfolder_path = os.path.join(base_folder, entry_name)
+        else:
+            # TypeB: Subfolder, psd and png inside
+            subfolder_path = os.path.join(base_folder, entry_name)
+            psd_path = os.path.join(subfolder_path, f"{entry_name}.psd")
+            png_path = os.path.join(subfolder_path, f"{entry_name}.png")
+        # Create subfolder if needed
+        if not os.path.exists(subfolder_path):
+            os.makedirs(subfolder_path)
+        # Create stub .png as 1024x1024 black image if not exist
+        from PIL import Image
+        import shutil
+        if not os.path.exists(png_path):
+            img = Image.new("RGB", (1024, 1024), color="black")
+            img.save(png_path, format="PNG")
+        # For PSD stub, just copy the PNG (so it's a PNG with .psd extension)
+        if not os.path.exists(psd_path):
+            shutil.copyfile(png_path, psd_path)
+        # Create prompt subfolder and blank .md files
+        prompt_folder = os.path.join(subfolder_path, "prompt")
+        if not os.path.exists(prompt_folder):
+            os.makedirs(prompt_folder)
+        md_files = [
+            "prompt_sd15.md",
+            "prompt_sd15_negative.md",
+            "prompt_sdxl.md",
+            "prompt_sdxl_negative.md",
+            "prompt_flux.md",
+            "prompt_video.md",
+            "prompt_florence.md"
+        ]
+        for md_file in md_files:
+            md_path = os.path.join(prompt_folder, md_file)
+            if not os.path.exists(md_path):
+                with open(md_path, 'w', encoding='utf-8') as f:
+                    pass
+        # Refresh UI
+        self.scan_folder()
+        self.refresh_assets_display()
+        self.add_entry_var.set("")
+
+    # ------------------------------------------------------------------------
+    # Saved Projects Logic
+    # ------------------------------------------------------------------------
+    @property
+    def settings_file(self):
+        return os.path.join(os.path.dirname(__file__), 'gen_project_prompt_settings.json')
+
+    def save_current_project_settings(self):
+        project_name = self.project_name_var.get().strip()
+        if not project_name:
+            self.show_status("Please enter a project name", error=True)
+            return
+        # Gather current settings
+        settings = {
+            'folder': self.folder_var.get().strip(),
+            'psds_in_root': self.psds_in_root_var.get(),
+            # Add more fields as needed
+        }
+        # Load or create settings file
+        import json
+        all_settings = {}
+        if os.path.exists(self.settings_file):
+            try:
+                with open(self.settings_file, 'r', encoding='utf-8') as f:
+                    all_settings = json.load(f)
+            except Exception:
+                all_settings = {}
+        all_settings[project_name] = settings
+        try:
+            with open(self.settings_file, 'w', encoding='utf-8') as f:
+                json.dump(all_settings, f, indent=2)
+            self.show_status(f"Settings saved as '{project_name}'", error=False)
+            self.refresh_saved_project_buttons()
+        except Exception as e:
+            self.show_status(f"Error saving settings: {str(e)}", error=True)
+
+    def load_project_settings(self, project_name):
+        import json
+        if not os.path.exists(self.settings_file):
+            self.show_status("No saved projects found.", error=True)
+            return
+        try:
+            with open(self.settings_file, 'r', encoding='utf-8') as f:
+                all_settings = json.load(f)
+            if project_name not in all_settings:
+                self.show_status(f"Project '{project_name}' not found.", error=True)
+                return
+            settings = all_settings[project_name]
+            # Restore settings
+            self.folder_var.set(settings.get('folder', ''))
+            self.psds_in_root_var.set(settings.get('psds_in_root', True))
+            self.input_folder = settings.get('folder', '')
+            # Trigger UI refresh
+            self.scan_folder()
+            self.refresh_assets_display()
+            self.show_status(f"Loaded settings from '{project_name}'", error=False)
+        except Exception as e:
+            self.show_status(f"Error loading settings: {str(e)}", error=True)
+
+    def refresh_saved_project_buttons(self):
+        # Clear old buttons
+        for widget in self.saved_projects_frame.winfo_children():
+            widget.destroy()
+        # Load project names
+        import json
+        if os.path.exists(self.settings_file):
+            try:
+                with open(self.settings_file, 'r', encoding='utf-8') as f:
+                    all_settings = json.load(f)
+                for pname in all_settings.keys():
+                    btn = ttk.Button(self.saved_projects_frame, text=pname, width=14,
+                        command=lambda n=pname: self.load_project_settings(n))
+                    btn.pack(side=tk.LEFT, padx=2)
+            except Exception:
+                pass
+
+    def show_status(self, msg, error=False):
+        self.status_label.config(text=msg, foreground=("#ff8080" if error else "#80ff80"))
+        self.status_label.after(3000, lambda: self.status_label.config(text=""))
+
+    # ------------------------------------------------------------------------
     # Mouse wheel handling
     # ------------------------------------------------------------------------
     def _on_mousewheel(self, event):
@@ -293,7 +468,7 @@ class AssetDataEntryUI(tk.Tk):
 
     def create_md_files_for_psd(self, psd_file, directory):
         """
-        Given a PSD file name (e.g., 'example.psd'), create subfolder and MD files if missing.
+        Given a PSD file name (e.g., 'item_example.psd'), create subfolder and MD files if missing.
         """
         base_name = os.path.splitext(psd_file)[0]
         subfolder_path = os.path.join(directory, base_name)
@@ -334,13 +509,13 @@ class AssetDataEntryUI(tk.Tk):
         if not self.input_folder or not os.path.isdir(self.input_folder):
             return
 
-        if self.psds_in_root_var.get():  # TypeA: PSDs in root
-            psd_files = [f for f in os.listdir(self.input_folder) if f.lower().endswith(".psd")]
-            psd_files.sort()
+        if self.psds_in_root_var.get():  # TypeA: PSDs/PSBs in root
+            asset_files = [f for f in os.listdir(self.input_folder) if f.lower().endswith((".psd", ".psb"))]
+            asset_files.sort()
 
-            for psd in psd_files:
-                base_name = os.path.splitext(psd)[0]
-                psd_path = os.path.join(self.input_folder, psd)
+            for asset in asset_files:
+                base_name = os.path.splitext(asset)[0]
+                asset_path = os.path.join(self.input_folder, asset)
                 png_path = os.path.join(self.input_folder, base_name + ".png")
                 if not os.path.isfile(png_path):
                     png_path = None
@@ -349,24 +524,24 @@ class AssetDataEntryUI(tk.Tk):
                 if not os.path.isdir(subfolder_path):
                     continue
 
-                self._add_asset_data(base_name, psd_path, png_path, subfolder_path)
+                self._add_asset_data(base_name, asset_path, png_path, subfolder_path)
 
-        else:  # TypeB: PSDs in subfolders
+        else:  # TypeB: PSDs/PSBs in subfolders
             subfolders = [f for f in os.listdir(self.input_folder) if os.path.isdir(os.path.join(self.input_folder, f))]
             subfolders.sort()
 
             for subfolder in subfolders:
                 subfolder_path = os.path.join(self.input_folder, subfolder)
-                psd_files = [f for f in os.listdir(subfolder_path) if f.lower().endswith(".psd")]
+                asset_files = [f for f in os.listdir(subfolder_path) if f.lower().endswith((".psd", ".psb"))]
                 
-                for psd in psd_files:
-                    base_name = os.path.splitext(psd)[0]
-                    psd_path = os.path.join(subfolder_path, psd)
+                for asset in asset_files:
+                    base_name = os.path.splitext(asset)[0]
+                    asset_path = os.path.join(subfolder_path, asset)
                     png_path = os.path.join(subfolder_path, base_name + ".png")
                     if not os.path.isfile(png_path):
                         png_path = None
 
-                    self._add_asset_data(base_name, psd_path, png_path, subfolder_path)
+                    self._add_asset_data(base_name, asset_path, png_path, subfolder_path)
 
         self.refresh_assets_display()
 

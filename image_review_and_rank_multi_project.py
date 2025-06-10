@@ -1,6 +1,7 @@
 """
  IMAGE REVIEW AND RANK
  Browse folders of images, move images into ranked folders with mouse clicks
+ project scale review and ranking for stable diffusion projects
 
 """
 # ===========================================================================================
@@ -228,6 +229,14 @@ class MainWindow(QMainWindow):
         self.image_multiplier_line_edit.returnPressed.connect(self.adjust_sizes)
         self.image_layout.addWidget(self.image_multiplier_line_edit)
 
+        # --- Filename hover label (added for user request) ---
+        filename_row = QHBoxLayout()
+        filename_row.addStretch(1)
+        self.filename_hover_label = QLabel("")
+        self.filename_hover_label.setStyleSheet("color: #A0A0A0; background: transparent; font-size: 12px;")
+        filename_row.addWidget(self.filename_hover_label)
+        self.image_layout.addLayout(filename_row)
+
         # Connect scroll events to trigger lazy loading
         self.scroll_area.verticalScrollBar().valueChanged.connect(self.update_visible_movies)
         self.scroll_area.horizontalScrollBar().valueChanged.connect(self.update_visible_movies)
@@ -449,8 +458,11 @@ class MainWindow(QMainWindow):
             self.grid_layout.addWidget(label, i // num_columns, i % num_columns)
             self.image_labels.append(label)
 
-        # Event filter for clicks
+        # Event filter for clicks and mouse movement
         self.grid_widget.installEventFilter(self)
+        self.grid_widget.setMouseTracking(True)
+        for label in self.image_labels:
+            label.setMouseTracking(True)
 
         # Update to start playing any visible WebPs
         self.update_visible_movies()
@@ -555,6 +567,19 @@ class MainWindow(QMainWindow):
                     elif event.button() == Qt.RightButton:
                         self.move_image_to_subfolder(image_path, '02')
                     return True
+        elif event.type() == QEvent.MouseMove:
+            # Mouse move: update filename label
+            pos = event.pos()
+            widget = source.childAt(pos)
+            if isinstance(widget, QLabel):
+                image_path = widget.objectName()
+                filename = os.path.basename(image_path)
+                self.filename_hover_label.setText(filename)
+            else:
+                self.filename_hover_label.setText("")
+        elif event.type() == QEvent.Leave:
+            # Mouse left the grid area
+            self.filename_hover_label.setText("")
         return super().eventFilter(source, event)
 
     def move_image_to_subfolder(self, image_path, subfolder):
