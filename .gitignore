@@ -173,3 +173,10 @@ sd_civitai_info_get.bat
 audio_hotkey_organizer.bat
 audio_hotkey_organizer.json
 vosk-model-en-us-0.42-gigaspeech/
+bad_words.txt
+gen_project_prompt_settings.json
+image_metadata_badword_scanner.bat
+video_review_and_rank_multi_project.bat
+image_editor_layered.bat
+video_editor_word_rating.bat
+z_test_bat_echo.bat

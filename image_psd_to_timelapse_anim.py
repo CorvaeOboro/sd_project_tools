@@ -1,29 +1,26 @@
 """
-IMAGE PSD TO TIMELAPSE BATCH FOLDER
+VIDEO PSD TO TIMELAPSE BATCH FOLDER
 makes a timelapse video from PSD by layers 
 for each PSD found create a temp resized version , then for each layer save a list of the visibility , hide all the layers then make visible one at compounding the layer stack 
 opens ui if no cli args specified 
-EXAMPLE: python IMAGE_PSD_TO_GIF_FOLDER.py --input="D:\CODE\IMAGE_PSD_TO_GIF\TEST" --export_layered --make_gif
+
+EXAMPLE: python video_psd_to_timelapse_anim.py --input="D:\CODE\VIDEO_PSD_TO_TIMELAPSE\TEST" --export_layered --make_gif
 latest version uses instead the .jsx in  photoshop to export layers for speed 
 previouly using psd-tools for 1000 pixel height psd of 600 layers was 1.5hour , 867 layers was 4hour , each layer iteration makes the process take longer ( starting at 3s per layer to 30s )
 using the .jsx script in photoshop is now 2-3minutes for 600 layers and scales linearly
 """
 #//==============================================================================
-import os # filepaths
-#import numpy as np # math
-import argparse # process args for running from CLI 
-from pathlib import Path # file path , filename stems 
-from PIL import Image # save images 
-import glob # get all files of types with glob wildcards
+import os # filepaths  # filepaths
+import argparse # process args for running from CLI   # process args for running from CLI
+from pathlib import Path # file path , filename stems   # file path , filename stems
+from PIL import Image # save images   # save images
+import glob # get all files of types with glob wildcards  # get all files of types with glob wildcards
 import shutil
-
-from tqdm import tqdm # progress bar 
-from psd_tools import PSDImage # used to save out from psd , unfortunately cant do resizing so we are opening a photoshop instance via app 
-# from moviepy.editor import ImageSequenceClip # make webm
-from moviepy.video.io.ImageSequenceClip import ImageSequenceClip # removed numpy dependecy
-
-from win32com.client import Dispatch, GetActiveObject, constants # used for phtoshop instance via app for resizing 
-import time # sleeping between saving temps
+import tqdm # progress bar   # progress bar
+from psd_tools import PSDImage # used to save out from psd , unfortunately cant do resizing so we are opening a photoshop instance via app   # used to save out from psd , unfortunately cant do resizing so we are opening a photoshop instance via app
+from moviepy.video.io.ImageSequenceClip import ImageSequenceClip # removed numpy dependecy  # removed numpy dependecy
+from win32com.client import Dispatch, GetActiveObject, constants # used for phtoshop instance via app for resizing   # used for phtoshop instance via app for resizing
+import time # sleeping between saving temps  # sleeping between saving temps
 import gc
 import psutil
 import tkinter as tk
@@ -31,6 +28,35 @@ from tkinter import filedialog, messagebox
 import sys
 import io
 import numpy as np
+from PIL import Image
+from PIL import Image  # Ensure Image is always imported  # Ensure Image is always imported
+import time
+from pathlib import Path
+import os
+import pythoncom
+import glob
+from moviepy.editor import ImageSequenceClip
+from win32com.client import Dispatch
+from photoshop import Session
+from photoshop.api import constants
+from photoshop.api.enumerations import ResampleMethod
+import traceback
+import win32com.client
+import win32com
+from win32com.client import GetActiveObject
+#import numpy as np # math
+# from moviepy.editor import ImageSequenceClip # make webm
+
+#//==============================================================================
+FIRST_FRAME_HOLD_TIME = 9
+LAST_FRAME_HOLD_TIME = 35
+GIF_SPEED = 130
+WEBM_FRAME_RATE = 5 # average layer totals around 300-600 , 450/ 10 = 45 seconds , targeting 20 second timeplapse 
+# framerate of 6 = 865 layers in 30 seconds
+SIMILARITY_THRESHOLD = 1 # how different each layer needs to be , skipping empty or low impact layers 
+EXCLUSION_FOLDERS = ["00_backup","backup"]
+PHOTOSHOP_EXPORT_JSX = "image_psd_to_timelapse_export.jsx"
+#//==============================================================================
 
 class TkinterConsole(io.StringIO):
     def __init__(self, log_callback, *args, **kwargs):
@@ -47,17 +73,6 @@ def print_memory_usage():
     process = psutil.Process(os.getpid())
     mem_info = process.memory_info()
     print(f"Memory Usage: {mem_info.rss / 1024 ** 2:.2f} MB")
-
-#//==============================================================================
-FIRST_FRAME_HOLD_TIME = 9
-LAST_FRAME_HOLD_TIME = 35
-GIF_SPEED = 130
-WEBM_FRAME_RATE = 5 # average layer totals around 300-600 , 450/ 10 = 45 seconds , targeting 20 second timeplapse 
-# framerate of 6 = 865 layers in 30 seconds
-SIMILARITY_THRESHOLD = 1 # how different each layer needs to be , skipping empty or low impact layers 
-EXCLUSION_FOLDERS = ["00_backup","backup"]
-PHOTOSHOP_EXPORT_JSX = "image_psd_to_timelapse_export.jsx"
-#//==============================================================================
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -146,7 +161,7 @@ def psd_to_layered_images(input_psd_path, log_callback=print):
     if total == 0:
         log_callback("[psd_to_layered_images] No visible pixel layers found. Nothing to export.")
         return
-    from PIL import Image
+
     for i in range(total):
         composite = Image.new(mode, size, (0, 0, 0, 0))
         log_callback(f"[psd_to_layered_images] Compositing frame {i}: layers {i} to {total-1}")
@@ -185,7 +200,6 @@ def images_are_similar(img1_data, img2_data, threshold=1):
     mse = total_diff / (width * height * 3)
     return mse < threshold
 
-
 def unique_images_only(images, threshold=1):
     unique_images = []
     previous_image_data = None
@@ -196,10 +210,7 @@ def unique_images_only(images, threshold=1):
             previous_image_data = current_image.copy()
     return unique_images
 
-
-
 def make_animation(input_path, original_name, file_extension, loop_backward, reverse_order=False, delete_frames=False, resize=False, max_size=1000):
-    from PIL import Image  # Ensure Image is always imported
     input_path = Path(input_path)  # Ensure input_path is a Path object
     images = sorted(glob.glob(str(input_path / "psdtemp_*.png")))
     images += sorted(glob.glob(str(input_path / "psdtemp_?????.png")))
@@ -214,7 +225,6 @@ def make_animation(input_path, original_name, file_extension, loop_backward, rev
         images_unique = images
     else:
         images_unique = unique_images_only(images)
-    import numpy as np
     # Optionally resize frames
     def resize_frame_np(np_img, max_size):
         pil_img = Image.fromarray(np_img)
@@ -272,7 +282,6 @@ def make_animation(input_path, original_name, file_extension, loop_backward, rev
         frames_padded += [frames[-1]] * LAST_FRAME_HOLD_TIME
         if loop_backward:
             frames_padded += frames_padded[-2:0:-1]
-        from moviepy.editor import ImageSequenceClip
         fps = WEBM_FRAME_RATE if file_extension == 'webm' else GIF_SPEED
         clip = ImageSequenceClip(frames_padded, fps=fps)
         bitrate = None
@@ -320,7 +329,6 @@ def should_process_psd_file(psd_file_path, webm_file_path, input_arg_make_webm):
 
 def check_photoshop_available(verbose=False, log_callback=None):
     try:
-        from win32com.client import Dispatch
         if verbose and log_callback:
             log_callback("Attempting to Dispatch('Photoshop.Application')...")
         app = Dispatch('Photoshop.Application')
@@ -329,7 +337,6 @@ def check_photoshop_available(verbose=False, log_callback=None):
         return True
     except Exception as e:
         msg = f"Photoshop COM automation not available: {e}\n"
-        import traceback
         msg += traceback.format_exc()
         if verbose and log_callback:
             log_callback(msg)
@@ -338,10 +345,6 @@ def check_photoshop_available(verbose=False, log_callback=None):
 
 def resize_psd_via_photoshop(psd_path, maximum_dimension, log_callback=None):
     try:
-        from photoshop import Session
-        from photoshop.api import constants
-        from photoshop.api.enumerations import ResampleMethod
-        import traceback
         resized_psd_filename = f"PSDTEMP_{os.path.basename(psd_path)}"
         print("resized_psd_filename " + resized_psd_filename)
         resized_psd_path = os.path.join(os.path.dirname(psd_path), resized_psd_filename)
@@ -386,11 +389,8 @@ def resize_psd_via_photoshop(psd_path, maximum_dimension, log_callback=None):
         print(msg)
         # Additional diagnostics
         try:
-            import win32com
-            import win32com.client
             msg2 = f"win32com.client module loaded.\n"
             # List running COM objects
-            from win32com.client import GetActiveObject
             try:
                 active_ps = GetActiveObject('Photoshop.Application')
                 msg2 += f"GetActiveObject found Photoshop.Application: version={getattr(active_ps, 'Version', 'unknown')}, exe={getattr(active_ps, 'Path', 'unknown')}\n"
@@ -415,11 +415,6 @@ def export_layers_with_photoshop_jsx(psd_path, jsx_path, output_dir, log_callbac
         output_dir: Directory to output exported layers
         log_callback: Optional logger
     """
-    import sys
-    import time
-    from pathlib import Path
-    import os
-    import pythoncom
     pythoncom.CoInitialize()
     psd_path = Path(psd_path)
     output_dir = Path(output_dir)
@@ -439,7 +434,6 @@ def export_layers_with_photoshop_jsx(psd_path, jsx_path, output_dir, log_callbac
         log_callback(f"[Photoshop JSX Export] Using PSD file: {psd_file}")
     log_callback(f"[Photoshop JSX Export] Starting export for {psd_file} using {jsx_script_path}")
     try:
-        import win32com.client
         app = win32com.client.Dispatch("Photoshop.Application")
         app.Visible = True
         log_callback(f"[Photoshop JSX Export] Waiting for Photoshop to load...")
@@ -530,8 +524,6 @@ def process_frames_to_video(input_folder, output_name, file_type="webm", loop_ba
         resize: Whether to resize the frames
         max_size: Maximum size for resizing
     """
-    import glob
-    from pathlib import Path
     input_folder = str(input_folder)
     found_any = False
     for dirpath, dirnames, filenames in os.walk(input_folder):
@@ -567,8 +559,6 @@ def export_layered_images_only(input_path, max_dimension=1000, log_callback=None
         max_dimension: Resize max dimension (if needed)
         log_callback: Optional logging callback
     """
-    from pathlib import Path
-    import shutil
     psd_files = [p for p in Path(input_path).rglob("*.psd") if "backup" not in p.parts] if Path(input_path).is_dir() else [Path(input_path)]
     for psd_file_path in psd_files:
         print(f"Exporting layered images for {psd_file_path}")
@@ -586,12 +576,6 @@ def export_layered_images_only(input_path, max_dimension=1000, log_callback=None
             log_callback(f"Layer images exported for {psd_file_path}")
 
 def run_gui():
-    try:
-        import tkinter as tk
-        from tkinter import filedialog, messagebox
-    except ImportError:
-        print("[ERROR] Tkinter is not installed. Please install it to use the GUI.")
-        sys.exit(1)
     root = tk.Tk()
     root.title("PSD to Timelapse Anim")
     root.geometry("650x420")
@@ -662,13 +646,11 @@ def run_gui():
         append_log(msg)
 
     def start():
-        import os
         folder = path_var.get()
         if not folder or not os.path.exists(folder):
             messagebox.showerror("Error", "Please specify a valid PSD file or folder.")
             return
         # Detect if psdtemp_*.png frames exist (support both file and folder input)
-        import glob
         input_path = folder
         is_file = os.path.isfile(input_path)
         frames_dir = os.path.dirname(input_path) if is_file else input_path
@@ -746,7 +728,6 @@ def get_dynamic_tqdm_width():
     return max(30, terminal_width - 20)  # Ensure a minimum width of 30 and adjust to fit terminal
 
 if __name__ == "__main__":
-    import sys
     if len(sys.argv) > 1:
         args = parse_args()
         # Add CLI switches for new modes

@@ -1,5 +1,5 @@
 """
-Asset Prompt Entry UI for Stable Diffusion Project 
+GEN Input Prompt Entry UI for Stable Diffusion Project 
 
 A GUI tool for managing and organizing projects with multiple Stable Diffusion prompt files.
 a visual interface for prompt entry and review.
@@ -51,8 +51,8 @@ TypeB Project Structure psds are in subfolders:
 FEATURES TODO :
 - [ ] use florence and other llms to add to and modify a prompt toward a style guide and examples per the modeltype
 - [ ] separate the UI into its own class for modularity 
-- [ ] add feature to copy a field but make its activation subtle like double clicking the name
-
+- [ ] color code the video prompt entryas muted purple 
+- [ ] add a button to multiply the strength of anythig with strength over 1 , to reduce 
 """
 
 import os
@@ -108,67 +108,57 @@ class AssetDataEntryUI(tk.Tk):
         self.active_md_key = None
 
         # -------------------------------
-        # Top control frame
+        # Top control frame (now multi-row)
         # -------------------------------
         control_frame = ttk.Frame(self)
         control_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=10)
 
-        # --- Saved Projects UI ---
-        # Project name entry
+        # --- Row 1: Project name, save, saved projects ---
+        row1 = ttk.Frame(control_frame)
+        row1.pack(side=tk.TOP, fill=tk.X, pady=2)
         self.project_name_var = tk.StringVar()
-        project_name_entry = ttk.Entry(control_frame, textvariable=self.project_name_var, width=18)
+        project_name_entry = ttk.Entry(row1, textvariable=self.project_name_var, width=18)
         project_name_entry.pack(side=tk.LEFT, padx=(0, 3))
         project_name_entry.insert(0, "ProjectName")
-        # Save button
-        save_project_btn = ttk.Button(control_frame, text="Save Project", command=self.save_current_project_settings)
+        save_project_btn = ttk.Button(row1, text="Save Project", command=self.save_current_project_settings)
         save_project_btn.pack(side=tk.LEFT, padx=(0, 10))
-        # Saved projects buttons frame
-        self.saved_projects_frame = ttk.Frame(control_frame)
+        self.saved_projects_frame = ttk.Frame(row1)
         self.saved_projects_frame.pack(side=tk.LEFT, padx=(0, 12))
-        # Status label
-        self.status_label = ttk.Label(control_frame, text="", foreground="#80ff80", background="black")
+        self.status_label = ttk.Label(row1, text="", foreground="#80ff80", background="black")
         self.status_label.pack(side=tk.LEFT, padx=(0, 12))
-        # Initialize saved project buttons
         self.refresh_saved_project_buttons()
 
-        # Label + text entry for folder input
-        label_input_folder = ttk.Label(control_frame, text="Folder:")
+        # --- Row 2: Folder input, load, generate ---
+        row2 = ttk.Frame(control_frame)
+        row2.pack(side=tk.TOP, fill=tk.X, pady=2)
+        label_input_folder = ttk.Label(row2, text="Folder:")
         label_input_folder.pack(side=tk.LEFT, padx=3)
-
-        folder_entry = ttk.Entry(control_frame, textvariable=self.folder_var, width=50)
+        folder_entry = ttk.Entry(row2, textvariable=self.folder_var, width=50)
         folder_entry.pack(side=tk.LEFT, padx=3)
-
-        # Button to load/scan the folder
-        load_button = ttk.Button(control_frame, text="Load", command=self.on_load_folder)
+        load_button = ttk.Button(row2, text="Load", command=self.on_load_folder)
         load_button.pack(side=tk.LEFT, padx=3)
-
-        # Button to generate MD files
-        generate_button = ttk.Button(
-            control_frame, text="Generate MD Files", command=self.on_generate_md_files
-        )
+        generate_button = ttk.Button(row2, text="Generate MD Files", command=self.on_generate_md_files)
         generate_button.pack(side=tk.LEFT, padx=3)
 
-        # --- ADD entry field and button ---
-        add_entry_field = ttk.Entry(control_frame, textvariable=self.add_entry_var, width=20)
+        # --- Row 3: Add entry, filter, structure ---
+        row3 = ttk.Frame(control_frame)
+        row3.pack(side=tk.TOP, fill=tk.X, pady=2)
+        add_entry_field = ttk.Entry(row3, textvariable=self.add_entry_var, width=20)
         add_entry_field.pack(side=tk.LEFT, padx=(20,3))
         add_entry_field.insert(0, "NewEntryName")
-        add_entry_button = ttk.Button(control_frame, text="ADD entry", command=self.on_add_entry)
+        add_entry_button = ttk.Button(row3, text="ADD entry", command=self.on_add_entry)
         add_entry_button.pack(side=tk.LEFT, padx=3)
-
-        # Checkbox to filter only assets with blank .md
         self.show_only_blank_var = tk.BooleanVar(value=False)
         filter_check = ttk.Checkbutton(
-            control_frame,
+            row3,
             text="Show only assets with blank prompts",
             variable=self.show_only_blank_var,
             command=self.refresh_assets_display
         )
         filter_check.pack(side=tk.LEFT, padx=8)
-
-        # Checkbox for project structure type
         self.psds_in_root_var = tk.BooleanVar(value=True)
         structure_check = ttk.Checkbutton(
-            control_frame,
+            row3,
             text="PSDs in root folder (vs. in subfolders)",
             variable=self.psds_in_root_var,
             command=self.scan_folder
@@ -235,21 +225,56 @@ class AssetDataEntryUI(tk.Tk):
         self.right_panel = ttk.Frame(main_content, style="Dark.TFrame")
         self.right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, padx=10, pady=5)
 
-        # Preview image at top of right panel
-        self.active_preview_label = ttk.Label(self.right_panel, text="")
+        # --- Refactored: Use a single vertical frame for all right panel widgets ---
+        self.right_panel_content = ttk.Frame(self.right_panel)
+        self.right_panel_content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        # Asset name label at very top
+        self.active_asset_name_label = ttk.Label(self.right_panel_content, text="", font=("TkDefaultFont", 14, "bold"), foreground="#c0e0ff", background="black")
+        self.active_asset_name_label.pack(side=tk.TOP, pady=(5,0))
+
+        # Preview image below asset name
+        self.active_preview_label = ttk.Label(self.right_panel_content, text="")
         self.active_preview_label.pack(side=tk.TOP, pady=5)
 
         # Label for active field
-        self.active_field_label = ttk.Label(self.right_panel, text="No field selected", font=("TkDefaultFont", 12, "bold"))
+        self.active_field_label = ttk.Label(self.right_panel_content, text="No field selected", font=("TkDefaultFont", 12, "bold"))
         self.active_field_label.pack(side=tk.TOP, pady=5)
 
-        # Text widget for active field
-        self.active_text_area = tk.Text(self.right_panel, width=40, height=30, bg="#2d2d2d", fg="white")
+        # --- Button frame just below type label ---
+        self.right_panel_button_frame = ttk.Frame(self.right_panel_content)
+        self.right_panel_button_frame.pack(side=tk.TOP, fill=tk.X, pady=(0, 5))
+
+        # Copy to... dropdown and button
+        self.copy_to_var = tk.StringVar()
+        self.copy_to_options = [
+            ("SDXL Positive", "sdxl_pos"),
+            ("SDXL Negative", "sdxl_neg"),
+            ("SD15 Positive", "sd15_pos"),
+            ("SD15 Negative", "sd15_neg"),
+            ("Flux", "flux"),
+            ("Video", "video"),
+            ("Florence", "florence"),
+        ]
+        self.copy_to_menu = ttk.OptionMenu(self.right_panel_button_frame, self.copy_to_var, None, *[label for label, key in self.copy_to_options])
+        self.copy_to_menu.pack(side=tk.LEFT, padx=(0, 5))
+        self.copy_to_btn = ttk.Button(self.right_panel_button_frame, text="Copy to selected field", command=self.copy_active_text_to_field)
+        self.copy_to_btn.pack(side=tk.LEFT, padx=(0, 10))
+        self.copy_to_menu.pack_forget()
+        self.copy_to_btn.pack_forget()
+
+        # Simplify Prompt button
+        self.simplify_btn = ttk.Button(self.right_panel_button_frame, text="Simplify Prompt (Remove Strength)", command=self.simplify_active_prompt)
+        self.simplify_btn.pack(side=tk.LEFT, padx=(0, 10))
+
+        # Text widget for active field (expands vertically, now below the buttons)
+        self.active_text_area = tk.Text(self.right_panel_content, width=40, height=30, bg="#2d2d2d", fg="white")
         self.active_text_area.pack(side=tk.TOP, fill=tk.BOTH, expand=True, pady=5)
         self.active_text_area.bind("<KeyRelease>", self.on_active_text_change)
 
         # Initially hide the right panel
         self.right_panel.pack_forget()
+
 
         # -------------------------------
         # Mouse wheel binding
@@ -811,6 +836,9 @@ class AssetDataEntryUI(tk.Tk):
         # Show the right panel
         self.right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, padx=10, pady=5)
         
+        # Update the asset name label
+        self.active_asset_name_label.config(text=asset.get("base_name", ""))
+
         # Update the label
         self.active_field_label.config(text=label_text)
         
@@ -832,6 +860,20 @@ class AssetDataEntryUI(tk.Tk):
         else:
             self.active_preview_label.config(image="")
 
+        # Update copy-to options (hide current field)
+        available = [(label, key) for label, key in self.copy_to_options if key != md_key]
+        menu = self.copy_to_menu["menu"]
+        menu.delete(0, "end")
+        for label, key in available:
+            menu.add_command(label=label, command=lambda l=label: self.copy_to_var.set(l))
+        if available:
+            self.copy_to_var.set(available[0][0])
+            self.copy_to_menu.pack(side=tk.LEFT, padx=(0, 5))
+            self.copy_to_btn.pack(side=tk.LEFT, padx=(0, 10))
+        else:
+            self.copy_to_menu.pack_forget()
+            self.copy_to_btn.pack_forget()
+
     def on_active_text_change(self, event):
         """Handle changes in the active text area"""
         if self.active_text_widget and self.active_asset:
@@ -842,6 +884,92 @@ class AssetDataEntryUI(tk.Tk):
             
             # Save the changes
             self.on_text_change(self.active_asset, self.active_text_widget, self.active_md_key)
+
+    def copy_active_text_to_field(self):
+        """Copy the active text area content to the selected prompt field for the same asset.
+        When copying from flux to sdxl, remove <lora:...> tags as they are not compatible.
+        Also update the UI for the copied-to field if visible."""
+        if not self.active_asset or not self.active_md_key:
+            return
+        import re
+        # Get selected label and key
+        selected_label = self.copy_to_var.get()
+        key_map = {label: key for label, key in self.copy_to_options}
+        target_key = key_map.get(selected_label)
+        if not target_key or target_key == self.active_md_key:
+            return
+        # Get content to copy
+        content = self.active_text_area.get("1.0", tk.END).rstrip("\n")
+        # Remove <lora:...> tags if copying from flux to sdxl
+        if self.active_md_key == "flux" and target_key in ("sdxl_pos", "sdxl_neg"):
+            content = re.sub(r"<lora:[^>]+>", "", content)
+        # Map key to asset field and file path
+        field_map = {
+            "sdxl_pos": ("prompt_sdxl_content", "prompt_sdxl_path"),
+            "sdxl_neg": ("prompt_sdxl_neg_content", "prompt_sdxl_neg_path"),
+            "sd15_pos": ("prompt_sd15_content", "prompt_sd15_path"),
+            "sd15_neg": ("prompt_sd15_neg_content", "prompt_sd15_neg_path"),
+            "flux": ("prompt_flux_content", "prompt_flux_path"),
+            "video": ("prompt_video_content", "prompt_video_path"),
+            "florence": ("prompt_florence_content", "prompt_florence_path"),
+        }
+        field_name, file_path_name = field_map[target_key]
+        # Update asset data
+        self.active_asset[field_name] = content
+        file_path = self.active_asset[file_path_name]
+        # Save to disk
+        directory = os.path.dirname(file_path)
+        if not os.path.isdir(directory):
+            os.makedirs(directory, exist_ok=True)
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        # Update the main table's text widget for the target field if visible
+        # Try to find the widget: loop through items_frame children for this asset and key
+        if hasattr(self, 'items_frame'):
+            for row in self.items_frame.winfo_children():
+                # Find the row for this asset
+                for child in row.winfo_children():
+                    # Find the content_container frame
+                    if isinstance(child, ttk.Frame):
+                        for content_frame in child.winfo_children():
+                            # Find the prompt text widgets
+                            if isinstance(content_frame, ttk.Frame):
+                                text_widgets = content_frame.winfo_children()
+                                key_order = ["sdxl_pos", "sdxl_neg", "sd15_pos", "sd15_neg", "flux", "video", "florence"]
+                                for idx, key in enumerate(key_order):
+                                    if key == target_key:
+                                        try:
+                                            # Check if this row is for the active asset
+                                            base_name_label = row.winfo_children()[0]
+                                            if base_name_label.cget("text") == self.active_asset.get("base_name", ""):
+                                                tw = text_widgets[idx]
+                                                tw.delete("1.0", tk.END)
+                                                tw.insert("1.0", content)
+                                        except Exception:
+                                            pass
+        # If the copied-to field is selected in the right panel, update it as well
+        if self.active_md_key == target_key:
+            self.active_text_area.delete("1.0", tk.END)
+            self.active_text_area.insert("1.0", content)
+
+    def simplify_active_prompt(self):
+        """Remove all (word:number) patterns from the currently selected prompt and save."""
+        import re
+        if not self.active_text_area or not self.active_asset or not self.active_md_key:
+            return
+        content = self.active_text_area.get("1.0", tk.END)
+        # Remove patterns like (berry:1.3) or (word:0.9)
+        simplified = re.sub(r"\([^\s:()]+:[0-9.]+\)", "", content)
+        # Update the UI
+        self.active_text_area.delete("1.0", tk.END)
+        self.active_text_area.insert("1.0", simplified.strip())
+        # Update the main table text widget if visible
+        if self.active_text_widget:
+            self.active_text_widget.delete("1.0", tk.END)
+            self.active_text_widget.insert("1.0", simplified.strip())
+        # Save to disk and update asset data
+        self.on_active_text_change(None)
 
 def main():
     default_folder = r"/path/to/your/project"

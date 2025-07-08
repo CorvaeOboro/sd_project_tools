@@ -242,6 +242,8 @@ echo.
 :: ================================
 :: Launch tools in separate persistent terminals
 echo [INFO] Tool Launcher opening in virtual environment
+echo [INFO] Waiting for environment to finish cleanup (3 seconds)
+timeout /t 3 /nobreak
 echo.
 
 :: Launch REVIEW_TOOL with log

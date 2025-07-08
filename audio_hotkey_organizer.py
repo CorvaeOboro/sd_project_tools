@@ -1,16 +1,21 @@
 """
-AUDIO HOTKEY ORGANIZER
+AUDIO HOTKEY ORGANIZER - VOICE ACTION ORGANIZER HOTKEY
 speech recognized by phonetic closeness to trigger "actions" windows operations for file organization
-actions : organize > moving currently selected files in explorer to a targeted folder 
-actions : archive > copy selected files to a backup folder in the same directory 
+actions : organize > moving selected files in explorer to a targeted folder by voice action name
+actions : archive > copy selected files to a "backup" folder in the same directory 
 actions : 01 or 02 > move selected files to a folder named 01 or 02 in the same directory used for rating
 actions : hotkey > trigger a hotkey 
 JSON stores the different actions and their parameters 'audio_hotkey_organizer.json'
 by default all actioned files are stored to BACKUP folder 
+
+this uses a local offline vosk model for speech recognition 
+https://alphacephei.com/vosk/models  vosk-model-en-us-0.42-gigaspeech
 """
 #//==============================================================================================================
 from vosk import Model, KaldiRecognizer # speech recognition works offline 
+# keep this as a note for other libraries tried in the past
 # import speech_recognition as sr  # removed , no longer using , doesnt work offline
+
 import pyautogui
 from threading import Thread
 from datetime import datetime
@@ -354,6 +359,7 @@ def load_actions():
     global actions
     with open(JSON_DATA, 'r') as file:
         actions = json.load(file)
+    return actions
 
 def match_action(recognized_text, actions):
     for action in actions:
@@ -401,27 +407,42 @@ class AudioHotkeyOrganizerUI:
         master.title("Voice Actions")
         master.configure(bg=self.DARK_BG)
 
-        # Create three main columns
-        self.left_frame = tk.Frame(master, bg=self.DARK_BG)
-        self.center_frame = tk.Frame(master, bg=self.DARK_BG)
-        self.right_frame = tk.Frame(master, bg=self.DARK_BG)
-        self.left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=8, pady=8)
-        self.center_frame.pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=8)
+        # Main vertical layout: top (content), bottom (log)
+        self.top_frame = tk.Frame(master, bg=self.DARK_BG)
+        self.bottom_frame = tk.Frame(master, bg=self.DARK_BG)
+        self.top_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.X)
+
+        # Top horizontal layout: left, center, right
+        self.left_frame = tk.Frame(self.top_frame, bg=self.DARK_BG)
+        self.center_frame = tk.Frame(self.top_frame, bg=self.DARK_BG)
+        self.right_frame = tk.Frame(self.top_frame, bg=self.DARK_BG)
+        self.left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=8)
+        self.center_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=8, pady=8)
         self.right_frame.pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=8)
 
-        # LEFT COLUMN: Logging
-        self.concise_log_var = tk.StringVar(value="Ready.")
-        self.concise_log_label = tk.Label(self.left_frame, textvariable=self.concise_log_var, bg=self.DARK_BG, fg="#a8ff60", font=(FONT_NAME, 11, "bold"))
-        self.concise_log_label.pack(pady=(0,4), anchor="w")
-        self.history = scrolledtext.ScrolledText(self.left_frame, height=15, width=50, bg=self.DARK_ENTRY_BG, fg=self.DARK_ENTRY_FG, insertbackground=self.DARK_FG)
-        self.history.pack(fill=tk.BOTH, expand=True)
+        # LEFT COLUMN: Group by folder checkbox
+        self.group_by_folder_var = tk.BooleanVar(value=False)
+        self.group_by_folder_checkbox = tk.Checkbutton(
+            self.left_frame, text="Group by Base Folder", variable=self.group_by_folder_var,
+            command=self.display_actions_ui, bg=self.DARK_BG, fg=self.DARK_FG, selectcolor=self.DARK_ENTRY_BG, activebackground=self.DARK_BG, activeforeground=self.DARK_FG
+        )
+        self.group_by_folder_checkbox.pack(anchor="w", pady=(0,2))
 
-        # CENTER COLUMN: Actions list
-        self.actions_listbox = Listbox(self.center_frame, height=25, width=30, bg=self.DARK_ENTRY_BG, fg=self.DARK_ENTRY_FG, selectbackground=self.DARK_SELECT_BG, selectforeground=self.DARK_SELECT_FG, highlightbackground=self.DARK_HIGHLIGHT)
+        # LEFT COLUMN: Actions list
+        self.actions_listbox = Listbox(self.left_frame, height=25, width=30, bg=self.DARK_ENTRY_BG, fg=self.DARK_ENTRY_FG, selectbackground=self.DARK_SELECT_BG, selectforeground=self.DARK_SELECT_FG, highlightbackground=self.DARK_HIGHLIGHT)
         self.actions_listbox.pack(fill=tk.BOTH, expand=True)
-        self.add_action_button = tk.Button(self.center_frame, text="Add Action", command=self.open_add_action_window, bg=self.DARK_BUTTON_BG, fg=self.DARK_BUTTON_FG)
+        self.add_action_button = tk.Button(self.left_frame, text="Add Action", command=self.open_add_action_window, bg=self.DARK_BUTTON_BG, fg=self.DARK_BUTTON_FG)
         self.add_action_button.pack(pady=5)
-        self.actions_listbox.bind("<<ListboxSelect>>", self.update_label)
+        self.actions_listbox.bind("<<ListboxSelect>>", self.on_action_select)
+        # Only allow selection changes from explicit listbox clicks, not from editor focus
+        self.actions_listbox.bind('<Button-1>', self._on_listbox_click)
+
+        # CENTER COLUMN: Action Editor (for editing selected action)
+        self.action_editor_frame = tk.LabelFrame(self.center_frame, text="Action Editor", bg=self.DARK_BG, fg=self.DARK_FG)
+        self.action_editor_frame.pack(fill=tk.BOTH, expand=True)
+        self.action_editor_widgets = {}
+        self.populate_action_editor(None)  # Initially empty
 
         # RIGHT COLUMN: Settings
         # JSON file row
@@ -486,6 +507,13 @@ class AudioHotkeyOrganizerUI:
         self.audio_level_progress.pack(pady=5)
         self._style_dark_progressbar()
 
+        # BOTTOM: Log widgets (full width)
+        self.concise_log_var = tk.StringVar(value="Ready.")
+        self.concise_log_label = tk.Label(self.bottom_frame, textvariable=self.concise_log_var, bg=self.DARK_BG, fg="#a8ff60", font=(FONT_NAME, 11, "bold"))
+        self.concise_log_label.pack(side=tk.TOP, anchor="w", fill=tk.X)
+        self.history = scrolledtext.ScrolledText(self.bottom_frame, height=8, bg=self.DARK_ENTRY_BG, fg=self.DARK_ENTRY_FG, insertbackground=self.DARK_FG)
+        self.history.pack(side=tk.TOP, fill=tk.X, expand=False)
+
         # Redirect stdout to history widget
         sys.stdout = StdoutRedirector(self.history)
 
@@ -535,8 +563,101 @@ class AudioHotkeyOrganizerUI:
 
     def display_actions_ui(self):
         self.actions_listbox.delete(0, tk.END)
-        for action in self.actions:
-            self.actions_listbox.insert(tk.END, action['name'])
+        self._sorted_actions = []
+        group_mode = self.group_by_folder_var.get()
+        if not group_mode:
+            # Simple alpha sort
+            sorted_actions = sorted(self.actions, key=lambda a: a.get('name', '').lower())
+            self._sorted_actions = sorted_actions
+            for action in sorted_actions:
+                self.actions_listbox.insert(tk.END, action['name'])
+        else:
+            # Group by base folder (path_start)
+            from collections import defaultdict
+            group_map = defaultdict(list)
+            for action in self.actions:
+                group = action.get('path_start', '').strip()
+                group_map[group].append(action)
+            # Sort groups and actions
+            sorted_groups = sorted(group_map.items(), key=lambda x: (x[0] or '').lower())
+            # Muted color palette for group headers (expanded)
+            group_colors = [
+                '#44505a',  # muted blue/gray
+                '#3b4a4d',  # muted teal/gray
+                '#4a4640',  # muted olive
+                '#4d3b47',  # muted purple/brown
+                '#404a4d',  # muted slate
+                '#43494d',  # muted charcoal
+                '#4a5a44',  # muted green
+                '#44525a',  # muted blue
+                '#5a445a',  # muted purple
+                '#4a5a55',  # muted teal
+                '#595a44',  # muted yellow/green
+                '#4a495a',  # muted indigo
+            ]
+            color_idx = 0
+            self._action_listbox_map = []  # Maps visible action row to dict: {'type': 'header'|'action'|'spacer', 'id': unique_id, 'group_color': color}
+            self._action_id_map = {}  # Maps unique_id -> action object
+            for group, actions_in_group in sorted_groups:
+                # Insert group header
+                group_label = group if group else '(No Path)'
+                group_color = group_colors[color_idx % len(group_colors)]
+                self.actions_listbox.insert(tk.END, f'[{group_label}]')
+                self.actions_listbox.itemconfig(tk.END, {'bg': group_color, 'fg': '#e0e0e0'})
+                self._action_listbox_map.append({'type': 'header', 'group_color': group_color, 'id': None})
+                color_idx += 1
+                # Insert actions in this group
+                sorted_actions = sorted(actions_in_group, key=lambda a: a.get('name', '').lower())
+                for action in sorted_actions:
+                    self.actions_listbox.insert(tk.END, f'  {action["name"]}')
+                    # Color the font to match group
+                    self.actions_listbox.itemconfig(tk.END, {'fg': group_color, 'bg': self.DARK_ENTRY_BG})
+                    # Use a unique id for each action (hash of name+hotkey+path_start+path_end)
+                    unique_id = hash((action.get('name',''), action.get('hotkey',''), action.get('path_start',''), action.get('path_end','')))
+                    self._action_listbox_map.append({'type': 'action', 'id': unique_id, 'group_color': group_color})
+                    self._action_id_map[unique_id] = action
+                # Add a blank line for spacing
+                self.actions_listbox.insert(tk.END, '')
+                self.actions_listbox.itemconfig(tk.END, {'bg': self.DARK_BG})
+                self._action_listbox_map.append({'type': 'spacer', 'id': None, 'group_color': None})
+        # Clear the action editor
+        self.populate_action_editor(None)
+
+    def on_action_select(self, event=None):
+        # Only update the editor if the selection actually changes
+        selection = self.actions_listbox.curselection()
+        if not hasattr(self, '_last_selected_action_idx'):
+            self._last_selected_action_idx = None
+        if not selection:
+            # If selection is cleared (e.g., by Entry focus), restore last selection and do NOT clear editor
+            if self._last_selected_action_idx is not None:
+                self.actions_listbox.selection_set(self._last_selected_action_idx)
+                return
+            else:
+                self.populate_action_editor(None)
+                return
+        idx = selection[0]
+        # Only update if the selection changed
+        if self._last_selected_action_idx == idx:
+            return
+        group_mode = self.group_by_folder_var.get()
+        if group_mode:
+            if not hasattr(self, '_action_listbox_map') or idx >= len(self._action_listbox_map):
+                return
+            map_entry = self._action_listbox_map[idx]
+            if map_entry['type'] == 'action' and map_entry['id'] in self._action_id_map:
+                action = self._action_id_map[map_entry['id']]
+                self._last_selected_action_idx = idx
+                self.populate_action_editor(action)
+        else:
+            action = self._sorted_actions[idx]
+            self._last_selected_action_idx = idx
+            self.populate_action_editor(action)
+
+    def _on_listbox_click(self, event):
+        # This is called only for true mouse clicks in the listbox
+        self._block_action_select = False
+        self.actions_listbox.after(1, lambda: setattr(self, '_block_action_select', False))
 
     def update_label(self, event=None):
         self.label.config(text=recognized_text_global)
@@ -638,6 +759,112 @@ class AudioHotkeyOrganizerUI:
         submit_btn = tk.Button(win, text="Add", command=submit, bg=self.DARK_BUTTON_BG, fg=self.DARK_BUTTON_FG)
         submit_btn.grid(row=len(fields), column=0, columnspan=2, pady=8)
 
+    def populate_action_editor(self, action):
+        # Clear previous widgets
+        for widget in self.action_editor_frame.winfo_children():
+            widget.destroy()
+        self.action_editor_widgets = {}
+        if not action:
+            tk.Label(self.action_editor_frame, text="Select an action to edit", bg=self.DARK_BG, fg=self.DARK_FG).pack()
+            return
+        # Field labels and entries (same as add, but prefilled)
+        fields = [
+            ("Name", "name"),
+            ("Phonetic Words (comma-separated)", "phonetic_words"),
+            ("Enabled (true/false)", "enabled"),
+            ("Hotkey (e.g. ctrl+N)", "hotkey"),
+            ("Path Start", "path_start"),
+            ("Path End", "path_end"),
+            ("Backup (true/false)", "backup"),
+            ("Press Hotkey (true/false)", "press_hotkey"),
+            ("Explorer Folder (optional)", "explorer_folder")
+        ]
+        entries = {}
+        for idx, (label, key) in enumerate(fields):
+            tk.Label(self.action_editor_frame, text=label, bg=self.DARK_BG, fg=self.DARK_FG, anchor='w', justify='left').grid(row=idx, column=0, sticky='w', padx=(8,2), pady=2)
+            # Reduce width for all fields for compactness, keep name slightly larger
+            if key == 'name':
+                entry = tk.Entry(self.action_editor_frame, bg=self.DARK_ENTRY_BG, fg=self.DARK_ENTRY_FG, insertbackground=self.DARK_FG, width=28, font=(FONT_NAME, 13, 'bold'), highlightbackground=self.DARK_HIGHLIGHT, justify='left')
+            elif key == 'path_end':
+                entry = tk.Entry(self.action_editor_frame, bg=self.DARK_ENTRY_BG, fg=self.DARK_ENTRY_FG, insertbackground=self.DARK_FG, width=18, font=(FONT_NAME, 11), highlightbackground=self.DARK_HIGHLIGHT, justify='left')
+            else:
+                entry = tk.Entry(self.action_editor_frame, bg=self.DARK_ENTRY_BG, fg=self.DARK_ENTRY_FG, insertbackground=self.DARK_FG, width=16, highlightbackground=self.DARK_HIGHLIGHT, justify='left')
+            entry.grid(row=idx, column=1, padx=(2,8), pady=2, sticky='w')
+            # Prefill
+            val = action.get(key, "")
+            if key == "phonetic_words":
+                val = ", ".join(action.get("phonetic_words", []))
+            elif isinstance(val, bool):
+                val = "true" if val else "false"
+            entry.insert(0, val)
+            entries[key] = entry
+            # Bind focus-in to keep selection
+        self.action_editor_widgets = entries
+        # Save button
+        save_btn = tk.Button(self.action_editor_frame, text="Save", command=lambda: self.save_edited_action(action), bg=self.DARK_BUTTON_BG, fg=self.DARK_BUTTON_FG)
+        save_btn.grid(row=len(fields), column=0, columnspan=2, pady=8)
+
+    def save_edited_action(self, orig_action):
+        try:
+            # Use the last selected index, not the current selection (which may be empty)
+            idx = getattr(self, '_last_selected_action_idx', None)
+            if idx is None:
+                raise Exception("No action is currently selected for saving.")
+            group_mode = self.group_by_folder_var.get()
+            if group_mode:
+                # Use robust mapping via unique id
+                if not hasattr(self, '_action_listbox_map') or idx >= len(self._action_listbox_map):
+                    raise Exception("Action mapping error: index out of range.")
+                map_entry = self._action_listbox_map[idx]
+                if map_entry['type'] != 'action' or map_entry['id'] not in self._action_id_map:
+                    raise Exception("Action mapping error: not a valid action row.")
+                sorted_action = self._action_id_map[map_entry['id']]
+            else:
+                if idx >= len(self._sorted_actions):
+                    raise Exception("Action mapping error: index out of range.")
+                sorted_action = self._sorted_actions[idx]
+            # Find the matching action in the unsorted list
+            orig_idx = None
+            for i, a in enumerate(self.actions):
+                if (
+                    a.get('name', '') == sorted_action.get('name', '') and
+                    a.get('hotkey', '') == sorted_action.get('hotkey', '') and
+                    a.get('path_start', '') == sorted_action.get('path_start', '') and
+                    a.get('path_end', '') == sorted_action.get('path_end', '')
+                ):
+                    orig_idx = i
+                    break
+            if orig_idx is None:
+                raise Exception("Could not map selected action to original action list.")
+            # Build new action dict
+            new_action = {
+                "name": self.action_editor_widgets['name'].get().strip(),
+                "phonetic_words": [w.strip() for w in self.action_editor_widgets['phonetic_words'].get().split(',') if w.strip()],
+                "enabled": self.action_editor_widgets['enabled'].get().strip().lower() in ['true', '1', 'yes', 'on', 'enabled'],
+                "hotkey": self.action_editor_widgets['hotkey'].get().strip(),
+                "path_start": self.action_editor_widgets['path_start'].get().strip(),
+                "path_end": self.action_editor_widgets['path_end'].get().strip(),
+                "backup": self.action_editor_widgets['backup'].get().strip().lower() in ['true', '1', 'yes', 'on', 'enabled'],
+                "press_hotkey": self.action_editor_widgets['press_hotkey'].get().strip().lower() in ['true', '1', 'yes', 'on', 'enabled']
+            }
+            explorer_folder_val = self.action_editor_widgets['explorer_folder'].get().strip()
+            if explorer_folder_val:
+                new_action['explorer_folder'] = explorer_folder_val
+            # Load, update, and save JSON
+            with open(JSON_DATA, 'r') as f:
+                data = json.load(f)
+            data[orig_idx] = new_action
+            with open(JSON_DATA, 'w') as f:
+                json.dump(data, f, indent=4)
+            # Reload actions
+            self.actions = load_actions()
+            self.display_actions_ui()
+            # Reselect the edited action in the sorted list
+            self.actions_listbox.selection_set(idx)
+            self.log_both(f"Updated action '{new_action['name']}'", f"Updated: {new_action}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save action: {e}")
+
 if __name__ == "__main__":
     load_actions()
     # Start the speech recognition thread
@@ -645,6 +872,7 @@ if __name__ == "__main__":
     thread.daemon = True
     thread.start()
 
+    # UI 
     root = tk.Tk()
     global app
     app = AudioHotkeyOrganizerUI(
