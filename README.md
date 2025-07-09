@@ -5,6 +5,8 @@
 # diffusion_project_tools
 - a collection of tools for interacting with image synthesis projects , organizing , reviewing , and generating . 
 
+| review | comfy | sort| prompt | video | audio | 
+
 # install
 - install python 3.10
 - [download diffusion_project_tools](https://github.com/CorvaeOboro/sd_project_tools/archive/refs/heads/master.zip) and extract to a folder
@@ -49,6 +51,9 @@ located in /comfyui/ folder , copy into comfyui custom_nodes  to install
 - [lora_variants.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/lora_variants.py) = input a prompt with loras and generate all permutations of strengths , within a range of total lora strength and per lora strengths . the output can then be used for x/y plot or as wildcard
 - [lora_previews_to_list.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/lora_previews_to_list.py) = given a folder of lora previews creates a list
 
+# image tools
+- [image_editor_layered.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_editor_layered.py) = basic GUI tool to edit an image with multiple layers
+
 # video tools
 - [video_clip_marker.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_clip_marker.py) = tool for marking and processing video clips
 - [video_combine.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_combine.py) = GUI tool for combining videos, adjusting speed, removing first frames, and batch processing video folders. Uses ffmpeg
@@ -58,10 +63,12 @@ located in /comfyui/ folder , copy into comfyui custom_nodes  to install
 - [video_to_image_composite.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_to_image_composite.py) = converts video frames to composite images
 - [image_psd_to_timelapse_anim.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_psd_to_timelapse_anim.py) = Converts PSD layers to timelapse animations, UI and CLI, exports to video gif or webp or webm. updated to use [image_psd_to_timelapse_export.jsx](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_psd_to_timelapse_export.jsx) a photoshop javascript to do the exporting faster 
 - <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/image_psd_to_timelapse_anim.png?raw=true" height="120" />
+- [video_editor_word_rating.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_editor_word_rating.py) = GUI tool to rate video frames using words 
+- [video_review_and_rank_multi_project.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_review_and_rank_multi_project.py) =UI for reviewing and ranking video files
 
 # audio tools
-- [audio_hotkey_organizer.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/audio_hotkey_organizer.py) = GUI tool for offline speech recognition (using Vosk) to trigger hotkeys or move selected files in Windows Explorer using spoken commands. JSON action management. Requires the [Vosk speech model](https://alphacephei.com/vosk/models)
-- <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/audio_hotkey_organizer.png?raw=true" height="120" />
+- [voice_action_organizer.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/voice_action_organizer.py) = GUI tool for offline speech recognition (using Vosk) to trigger hotkeys or move selected files in Windows Explorer using spoken commands. JSON action management. Requires the [Vosk speech model](https://alphacephei.com/vosk/models)
+- <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/voice_action_organizer.png?raw=true" height="120" />
 
 # auto1111 webui project workflow
 earlier versions of this project utilized the auto1111 webui , these are examples of that workflow:

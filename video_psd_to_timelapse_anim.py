@@ -4,7 +4,7 @@ makes a timelapse video from PSD by layers
 for each PSD found create a temp resized version , then for each layer save a list of the visibility , hide all the layers then make visible one at compounding the layer stack 
 opens ui if no cli args specified 
 
-EXAMPLE: python video_psd_to_timelapse_anim.py --input="D:\CODE\VIDEO_PSD_TO_TIMELAPSE\TEST" --export_layered --make_gif
+EXAMPLE: python video_psd_to_timelapse_anim.py --input="D:\Input\" --export_layered --make_gif
 latest version uses instead the .jsx in  photoshop to export layers for speed 
 previouly using psd-tools for 1000 pixel height psd of 600 layers was 1.5hour , 867 layers was 4hour , each layer iteration makes the process take longer ( starting at 3s per layer to 30s )
 using the .jsx script in photoshop is now 2-3minutes for 600 layers and scales linearly
@@ -55,7 +55,7 @@ WEBM_FRAME_RATE = 5 # average layer totals around 300-600 , 450/ 10 = 45 seconds
 # framerate of 6 = 865 layers in 30 seconds
 SIMILARITY_THRESHOLD = 1 # how different each layer needs to be , skipping empty or low impact layers 
 EXCLUSION_FOLDERS = ["00_backup","backup"]
-PHOTOSHOP_EXPORT_JSX = "image_psd_to_timelapse_export.jsx"
+PHOTOSHOP_EXPORT_JSX = "video_psd_to_timelapse_export.jsx"
 #//==============================================================================
 
 class TkinterConsole(io.StringIO):

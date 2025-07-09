@@ -1,5 +1,5 @@
 // PSD EXPORT TIMELAPSE FRAMES
-// originally we were handling this in python psd tools but was sloe
+// originally we were handling this in python psd tools but was slow
 // for speed this exports in top down order hiding visible layers and saving each stage
 // the result is the frames are in reverse order
 #target photoshop

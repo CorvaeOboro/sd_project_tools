@@ -1,5 +1,5 @@
 """
-AUDIO HOTKEY ORGANIZER - VOICE ACTION ORGANIZER HOTKEY
+VOICE ACTION ORGANIZER - AUDIO HOTKEY
 speech recognized by phonetic closeness to trigger "actions" windows operations for file organization
 actions : organize > moving selected files in explorer to a targeted folder by voice action name
 actions : archive > copy selected files to a "backup" folder in the same directory 

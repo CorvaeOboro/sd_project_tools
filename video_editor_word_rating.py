@@ -10,34 +10,39 @@ TRANSCRIPTION
 
 CONTROLS
 - middle mouse click to jump to a place on the timeline
+- left click = mark good section , right click = mark bad section
 - spacebar will play or stop video playback
 - consider a cumulative rating for sections with a quick input like up or down arrow , these rough indicators could be useful in finding places to cut based on a threshold . as well could indicate a highlight or very important moment 
 """
+
+
+# ========== VOSK IMPORTS ==========
+
+#//====================================================================================
+
+
 import os
 import sys
 import tempfile
 import subprocess
+import re
+import traceback
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QFileDialog, QSlider, QLineEdit
 )
 from PyQt5.QtCore import Qt, QTimer, QUrl
 from PyQt5.QtGui import QPainter, QColor
-
-try:
-    from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
-    from PyQt5.QtMultimediaWidgets import QVideoWidget
-    MULTIMEDIA_AVAILABLE = True
-except ImportError:
-    MULTIMEDIA_AVAILABLE = False
-
-# ========== VOSK IMPORTS ==========
-try:
-    from vosk import Model, KaldiRecognizer
-    import wave
-    import json as jsonlib
-    VOSK_AVAILABLE = True
-except ImportError:
-    VOSK_AVAILABLE = False
+from PyQt5.QtWidgets import QScrollArea, QWidget, QVBoxLayout
+from PyQt5.QtWidgets import QSizePolicy
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
+from PyQt5.QtMultimediaWidgets import QVideoWidget
+from vosk import Model, KaldiRecognizer
+import wave
+import json
+        from PyQt5.QtWidgets import QSplitter
+        from PyQt5.QtWidgets import QFileDialog
+        import datetime, shutil
 
 class TimelineWidget(QWidget):
     def __init__(self, parent=None):
@@ -127,9 +132,6 @@ class TimelineWidget(QWidget):
         self.regions = []
         self.update()
 
-from PyQt5.QtWidgets import QScrollArea, QWidget, QVBoxLayout
-
-from PyQt5.QtWidgets import QSizePolicy
 
 class WordsTimelineWidget(QScrollArea):
     def __init__(self, parent=None):
@@ -168,7 +170,6 @@ class WordsTimelineWidget(QScrollArea):
         self.inner.setMinimumHeight(len(srt_blocks or [1]) * (self.word_height + self.row_gap + 8))
         self.update()
 
-from PyQt5.QtCore import pyqtSignal
 
 class SRTBlockTimeline(QWidget):
     wordStatusChanged = pyqtSignal(dict)
@@ -205,7 +206,6 @@ class SRTBlockTimeline(QWidget):
             parent.jump_to_word(word)
 
     def paintEvent(self, event):
-        from PyQt5.QtGui import QPainter, QColor
         painter = QPainter(self)
         w, h = self.width(), self.height()
         painter.fillRect(0, 0, w, h, QColor(28, 28, 28))
@@ -279,23 +279,16 @@ class VideoEditorWindow(QMainWindow):
         self.central.setStyleSheet("background-color: #111;")
 
         # --- Video and timelines splitter ---
-        from PyQt5.QtWidgets import QSplitter
         self.splitter = QSplitter(Qt.Vertical)
         self.layout.addWidget(self.splitter, stretch=1)
 
         # Video playback and timelines splitter (ONLY ONCE)
-        if MULTIMEDIA_AVAILABLE:
-            self.player = QMediaPlayer(self)
-            self.video_widget = QVideoWidget(self)
-            self.splitter.addWidget(self.video_widget)
-            self.player.setVideoOutput(self.video_widget)
-            self.player.positionChanged.connect(self.on_position_changed)
-            self.player.durationChanged.connect(self.on_duration_changed)
-        else:
-            self.player = None
-            self.video_widget = None
-            self.status_label = QLabel("PyQt5 Multimedia not available!")
-            self.layout.addWidget(self.status_label)
+        self.player = QMediaPlayer(self)
+        self.video_widget = QVideoWidget(self)
+        self.splitter.addWidget(self.video_widget)
+        self.player.setVideoOutput(self.video_widget)
+        self.player.positionChanged.connect(self.on_position_changed)
+        self.player.durationChanged.connect(self.on_duration_changed)
 
         self.timeline = TimelineWidget(self)
         self.splitter.addWidget(self.timeline)
@@ -407,8 +400,6 @@ class VideoEditorWindow(QMainWindow):
             self.player.setPosition(int(word['start'] * 1000))
 
     def save_progress(self):
-        import json
-        from PyQt5.QtWidgets import QFileDialog
         data = {
             'video_path': self.video_path,
             'timeline': self.timeline.regions,
@@ -425,8 +416,6 @@ class VideoEditorWindow(QMainWindow):
                 self.status_label.setText(f"Error saving: {e}")
 
     def load_progress(self):
-        import json
-        from PyQt5.QtWidgets import QFileDialog
         file, _ = QFileDialog.getOpenFileName(self, "Load Progress", "", "JSON Files (*.json)")
         if file:
             try:
@@ -479,7 +468,6 @@ class VideoEditorWindow(QMainWindow):
         self.status_label.setText(f"Loaded: {os.path.basename(file)} (proxy)")
 
     def export_edited_video(self):
-        import datetime, shutil
         if not self.video_path or not os.path.exists(self.video_path):
             self.status_label.setText("No original video loaded!")
             return
@@ -628,10 +616,6 @@ class VideoEditorWindow(QMainWindow):
         self.timer.stop()
 
     def analyze_voice(self):
-        if not VOSK_AVAILABLE:
-            self.status_label.setText("Vosk not installed!")
-            print("[VOSK] Not installed!")
-            return
         if not self.video_path:
             self.status_label.setText("No video loaded!")
             print("[VOSK] No video loaded!")
@@ -664,6 +648,18 @@ class VideoEditorWindow(QMainWindow):
         self.words_timeline.update()
         self.status_label.setText(f"Analyzed {len(words)} words.")
         print(f"[VOSK] Analyzed {len(words)} words.")
+        # --- Save Vosk transcript as JSON ---
+        if self.video_path:
+            base = os.path.splitext(os.path.basename(self.video_path))[0]
+            out_dir = os.path.dirname(self.video_path)
+            vosk_json_path = os.path.join(out_dir, base + ".vosk.json")
+            try:
+                with open(vosk_json_path, 'w', encoding='utf-8') as f:
+                    json.dump(self.words, f, ensure_ascii=False, indent=2)
+                print(f"[VOSK] Transcript saved to {vosk_json_path}")
+            except Exception as e:
+                print(f"[VOSK] Failed to save transcript: {e}")
+
 
     def on_position_changed(self, ms):
         self.position = ms / 1000.0
@@ -682,7 +678,6 @@ class VideoEditorWindow(QMainWindow):
         self.words_timeline.update()
 
     def transcribe_words(self, wav_path):
-        import traceback
         model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vosk-model-en-us-0.42-gigaspeech")
         print(f"[VOSK] Model path: {model_path}")
         if not os.path.exists(model_path):
@@ -718,7 +713,7 @@ class VideoEditorWindow(QMainWindow):
                 if rec.AcceptWaveform(data):
                     res = rec.Result()
                     print(f"[VOSK] Chunk {frame_count} result: {res}")
-                    res = jsonlib.loads(res)
+                    res = json.loads(res)
                     if "result" in res:
                         for word in res["result"]:
                             words.append({
@@ -729,7 +724,7 @@ class VideoEditorWindow(QMainWindow):
                             })
             res = rec.FinalResult()
             print(f"[VOSK] Final result: {res}")
-            res = jsonlib.loads(res)
+            res = json.loads(res)
             if "result" in res:
                 for word in res["result"]:
                     words.append({
@@ -761,11 +756,28 @@ class VideoEditorWindow(QMainWindow):
             return None
 
     def load_transcript(self):
-        from PyQt5.QtWidgets import QFileDialog
-        import re
-        file, _ = QFileDialog.getOpenFileName(self, "Load Transcript", "", "Text Files (*.txt)")
+        file, _ = QFileDialog.getOpenFileName(self, "Load Transcript", "", "Text Files (*.txt);;JSON Files (*.json)")
         if not file:
             return
+
+        # Try to load as JSON first (for Vosk transcripts)
+        if file.lower().endswith('.json'):
+            try:
+                with open(file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                # Check if this is a Vosk transcript (list of dicts with word/start/end)
+                if isinstance(data, list) and all(isinstance(w, dict) and 'word' in w and 'start' in w and 'end' in w for w in data):
+                    self.words = data
+                    self.words_timeline.set_words(self.words, self.timeline.duration)
+                    self.status_label.setText(f"Loaded Vosk transcript: {os.path.basename(file)} ({len(self.words)} words)")
+                    return
+                else:
+                    self.status_label.setText("JSON file format not recognized as Vosk transcript.")
+                    return
+            except Exception as e:
+                self.status_label.setText(f"Error loading JSON transcript: {e}")
+                return
+        # Otherwise, fallback to legacy text transcript parsing
         with open(file, 'r', encoding='utf-8') as f:
             lines = [line.strip() for line in f if line.strip()]
         # Expect alternating timestamp/text lines (YouTube format)
@@ -798,8 +810,6 @@ class VideoEditorWindow(QMainWindow):
         self.status_label.setText(f"Loaded transcript: {os.path.basename(file)} ({len(self.words)} words in video)")
 
     def load_srt_transcript(self):
-        from PyQt5.QtWidgets import QFileDialog
-        import re
         file, _ = QFileDialog.getOpenFileName(self, "Load SRT Transcript", "", "SRT Files (*.srt)")
         if not file:
             return
@@ -845,8 +855,6 @@ class VideoEditorWindow(QMainWindow):
         self.words_timeline.set_words(self.words, self.timeline.duration, srt_blocks=srt_blocks)
         self.status_label.setText(f"Loaded SRT: {os.path.basename(file)} ({len(self.words)} words in video)")
 
-        from PyQt5.QtWidgets import QFileDialog
-        import re
         file, _ = QFileDialog.getOpenFileName(self, "Load Transcript", "", "Text Files (*.txt)")
         if not file:
             return
@@ -893,7 +901,7 @@ class VideoEditorWindow(QMainWindow):
                 if len(data) == 0:
                     break
                 if rec.AcceptWaveform(data):
-                    res = jsonlib.loads(rec.Result())
+                    res = json.loads(rec.Result())
                     if "result" in res:
                         for word in res["result"]:
                             w = word["word"].lower()
@@ -901,7 +909,7 @@ class VideoEditorWindow(QMainWindow):
                                 start = max(0, word["start"] - 0.25)
                                 end = word["end"] + 0.25
                                 regions.append((start, end))
-            res = jsonlib.loads(rec.FinalResult())
+            res = json.loads(rec.FinalResult())
             if "result" in res:
                 for word in res["result"]:
                     w = word["word"].lower()

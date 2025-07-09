@@ -1,7 +1,43 @@
 """
-LAUNCH TOOLS 
-a gui to display and launch tools from the sd project venv
-arranges and prioritizes common tools
+LAUNCH TOOLS
+A GUI to display and launch tools from the diffusion project venv.
+Arranges and prioritizes common tools.
+
+Diffusion Project's Python Tools :
+- image_review_and_rank_multi_project.py
+- image_review_and_rank.py
+- image_review_and_rank_multi.py
+- image_editor_layered.py
+- image_inspect_bmp.py
+
+- gen_project_prompt_entry.py
+- gen_image_variant_grid_explore.py
+- gen_batch_prompts_in_projects.py
+
+- wildcard_txt_to_asset_structure.py
+- voice_action_organizer.py
+- image_psd_to_timelapse_anim.py
+- image_metadata_badword_scanner.py
+- image_text_prompt_tools.py
+- sd_batch_image_gen_auto1111_webui.py
+- projects_from_images.py
+- tensor_sort_civitai_by_category.py
+- tensor_info_civitai_get.py
+- projects_from_civitai_info.py
+- lora_variants.py
+- lora_previews_to_list.py
+
+- dev_python_requirements_env.py
+
+- video_clip_marker.py
+- video_add_audio.py
+- video_place_in_image_composite.py
+- video_editor_word_rating.py
+- video_combine.py
+- video_review_and_rank_multi_project.py
+- video_webp_pingpong.py
+
+...and more in subfolders /comfyui/
 """
 
 import os
@@ -64,6 +100,12 @@ TOOL_CONFIG = {
             {"file": "image_text_prompt_tools.py", "label": "Image Text Prompt Tools", "icon": "", "color": "#3f6651", "size_priority": 0},
         ]
     },
+    "Image Tools": { 
+        "color": "#4a785f", 
+        "tools": [
+            {"file": "image_editor_layered.py", "label": "Image Editor Layered", "icon": "", "color": "#6aaa8f", "size_priority": 1},
+        ]
+    },
     "Model Info and Sort": { 
         "color": "#4a7f7f", 
         "tools": [
@@ -79,8 +121,10 @@ TOOL_CONFIG = {
             {"file": "video_clip_marker.py", "label": "Clip Marker", "icon": "", "color": "#8f80bf", "size_priority": 1}, 
             {"file": "video_place_in_image_composite.py", "label": "Place in Composite", "icon": "", "color": "#7a6fb0", "size_priority": 0},
             {"file": "video_webp_pingpong.py", "label": "WebP PingPong", "icon": "", "color": "#4a3f6a", "size_priority": 0},
-            {"file": "image_psd_to_timelapse_anim.py", "label": "PSD to Timelapse Anim", "icon": "", "color": "#4a6a8a", "size_priority": 1},
+            {"file": "video_review_and_rank_multi_project.py", "label": "Video Review & Rank Multi Project", "icon": "", "color": "#6a5f8f", "size_priority": 1},
+            {"file": "video_psd_to_timelapse_anim.py", "label": "PSD to Timelapse Anim", "icon": "", "color": "#4a6a8a", "size_priority": 1},
             {"file": "video_add_audio.py", "label": "Add Audio", "icon": "", "color": "#4a6a8a", "size_priority": 1},
+            {"file": "video_editor_word_rating.py", "label": "Video Word Editor", "icon": "", "color": "#4a6a8a", "size_priority": 1},
         ]
     },
     "SD webui Project ": { 
@@ -97,7 +141,7 @@ TOOL_CONFIG = {
     "Audio Tools": {
         "color": "#8f6a5f",
         "tools": [
-            {"file": "audio_hotkey_organizer.py", "label": "Audio Hotkey Organizer", "icon": "", "color": "#bf8f80", "size_priority": 1}
+            {"file": "voice_action_organizer.py", "label": "Voice Action Organizer", "icon": "", "color": "#bf8f80", "size_priority": 1}
         ]
     }
 }
