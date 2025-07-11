@@ -3,32 +3,36 @@ LAUNCH TOOLS
 A GUI to display and launch tools from the diffusion project venv.
 Arranges and prioritizes common tools.
 
-Diffusion Project's Python Tools :
+Diffusion Project Python Tools :
+// REVIEW--------------------------
 - image_review_and_rank_multi_project.py
 - image_review_and_rank.py
 - image_review_and_rank_multi.py
-- image_editor_layered.py
-- image_inspect_bmp.py
 
+// EDITOR--------------------------
+- image_editor_layered.py
+
+// PROMPT--------------------------
 - gen_project_prompt_entry.py
 - gen_image_variant_grid_explore.py
 - gen_batch_prompts_in_projects.py
 
-- wildcard_txt_to_asset_structure.py
+// VOICE--------------------------
 - voice_action_organizer.py
-- image_psd_to_timelapse_anim.py
-- image_metadata_badword_scanner.py
-- image_text_prompt_tools.py
-- sd_batch_image_gen_auto1111_webui.py
-- projects_from_images.py
+
+// TENSORS--------------------------
 - tensor_sort_civitai_by_category.py
 - tensor_info_civitai_get.py
+- tensor_remove_duplicate.py
+
+- image_metadata_badword_scanner.py
+- image_text_prompt_tools.py
+- projects_from_images.py
 - projects_from_civitai_info.py
 - lora_variants.py
 - lora_previews_to_list.py
 
-- dev_python_requirements_env.py
-
+// VIDEO--------------------------
 - video_clip_marker.py
 - video_add_audio.py
 - video_place_in_image_composite.py
@@ -36,8 +40,13 @@ Diffusion Project's Python Tools :
 - video_combine.py
 - video_review_and_rank_multi_project.py
 - video_webp_pingpong.py
+- video_psd_to_timelapse_anim.py
 
-...and more in subfolders /comfyui/
+// OLD WEBUI based project--------------------------
+- sd_batch_image_gen_auto1111_webui.py
+
+// WIP--------------------------
+- wildcard_txt_to_asset_structure.py
 """
 
 import os
@@ -51,6 +60,7 @@ import traceback
 import argparse
 import math
 
+#//========================================================================================================
 # --- Debug Print Helper ---
 DEBUG = False
 def debug_print(*args, **kwargs):
@@ -112,6 +122,7 @@ TOOL_CONFIG = {
             {"file": "tensor_info_civitai_get.py", "label": "Tensor Info Get", "icon": "", "color": "#3f6b6b", "size_priority": 0},
             {"file": "tensor_sort_civitai_files.py", "label": "Sort Civitai Files", "icon": "", "color": "#5a8a8a", "size_priority": 0},
             {"file": "tensor_sort_civitai_by_category.py", "label": "Sort by Category", "icon": "", "color": "#6f9f9f", "size_priority": 0},
+            {"file": "tensor_remove_duplicate.py", "label": "Remove Duplicate", "icon": "", "color": "#6f9f9f", "size_priority": 0},
         ]
     },
     "Video": { 
@@ -127,6 +138,12 @@ TOOL_CONFIG = {
             {"file": "video_editor_word_rating.py", "label": "Video Word Editor", "icon": "", "color": "#4a6a8a", "size_priority": 1},
         ]
     },
+    "Voice Action Organizer": {
+        "color": "#8f6a5f",
+        "tools": [
+            {"file": "voice_action_organizer.py", "label": "Voice Action Organizer", "icon": "", "color": "#bf8f80", "size_priority": 1}
+        ]
+    },
     "SD webui Project ": { 
         "color": "#5f5f8f", 
         "tools": [
@@ -137,15 +154,9 @@ TOOL_CONFIG = {
             {"file": "gen_batch_prompts_in_projects.py", "label": "Batch Prompts", "icon": "", "color": "#45456a", "size_priority": 0},
             {"file": "gen_image_variant_grid_explore.py", "label": "Variant Grid Explore", "icon": "", "color": "#55558f", "size_priority": 0},
         ]
-    },
-    "Audio Tools": {
-        "color": "#8f6a5f",
-        "tools": [
-            {"file": "voice_action_organizer.py", "label": "Voice Action Organizer", "icon": "", "color": "#bf8f80", "size_priority": 1}
-        ]
     }
 }
-
+#//========================================================================================================
 # --- Utility Functions ---
 def get_icon(tool_file, fallback_emoji):
     icon_path = os.path.join(ICON_FOLDER, os.path.splitext(tool_file)[0] + '.png')
@@ -267,7 +278,7 @@ class ToolLauncher(tk.Tk):
     def __init__(self, *args, **kwargs):
         debug_print("ToolLauncher.__init__: Start")
         super().__init__(*args, **kwargs)
-        self.title("SD Project Tool Launcher")
+        self.title("Diffusion Project Tool Launcher")
         self.geometry(f'{DEFAULT_WINDOW_WIDTH}x{DEFAULT_WINDOW_HEIGHT}') # Set initial size
         self.minsize(300, 400) # Enforce minimum size (Lowered values)
         self.configure(bg=DARK_BG)

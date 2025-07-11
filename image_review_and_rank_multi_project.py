@@ -1,13 +1,16 @@
 """
- IMAGE REVIEW AND RANK
- Browse folders of images, move images into ranked folders with mouse clicks
- project scale review and ranking for stable diffusion projects
-
+IMAGE REVIEW AND RANK PROJECT SCALE
+Browse folders of images, move images into ranked folders with mouse clicks
+Project scale review and ranking for diffusion projects
+Supports animated webp with temp preview 
+Set and Save Project settings
 """
 # ===========================================================================================
 import os
 import sys
 import json
+import tempfile
+import shutil
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout,
                              QWidget, QGridLayout, QScrollArea, QPushButton, QHBoxLayout,
                              QLineEdit, QFileDialog, QCheckBox, QScrollBar, QFrame)
@@ -24,24 +27,23 @@ class WorkerSignals(QObject):
 
 class ImageLoader(QRunnable):
     """
-    ImageLoader handles normal images and animated WebP.
-    If the file is .webp, skip creating a QImage thumbnail to preserve frames.
-    , pass a flag indicating it's WebP for lazy creation of QMovie in the GUI.
+    ImageLoader handles normal images and animated WebP/WebM.
+    For animated images, just flag them; do not create temp files here.
     """
-    def __init__(self, image_paths, image_width, image_height):
+    def __init__(self, image_paths, image_width, image_height, temp_dir):
         super().__init__()
         self.image_paths = image_paths
         self.image_width = image_width
         self.image_height = image_height
+        self.temp_dir = temp_dir
         self.signals = WorkerSignals()
 
     def run(self):
         images = []
         for path in self.image_paths:
             ext = os.path.splitext(path)[1].lower()
-            if ext == '.webp':
-                # We'll handle QMovie creation later, for lazy loading.
-                images.append((path, None, True))  # (path, thumbnail, is_webp)
+            if ext in ('.webp', '.webm'):
+                images.append((path, None, True))  # (orig_path, None, is_animated)
             else:
                 # Static image: create a thumbnail
                 try:
@@ -425,33 +427,45 @@ class MainWindow(QMainWindow):
         self.image_labels = []
         self.image_cache.clear()
         self.webp_movies.clear()
+        self.animated_temp_map = {}  # orig_path -> temp_path
+
+        # Create/ensure temp dir exists
+        if hasattr(self, 'folder_path') and self.folder_path:
+            temp_dir = os.path.join(self.folder_path, 'temp_anim')
+        else:
+            temp_dir = os.path.join(tempfile.gettempdir(), 'image_review_temp_anim')
+        os.makedirs(temp_dir, exist_ok=True)
+        self.temp_dir = temp_dir
 
         # Start asynchronous load
-        worker = ImageLoader(self.images, self.image_width, self.image_height)
+        worker = ImageLoader(self.images, self.image_width, self.image_height, temp_dir)
         worker.signals.result.connect(self.on_images_loaded)
         self.threadpool.start(worker)
 
     def on_images_loaded(self, images):
         """
-        images: list of (image_path, thumbnail, is_webp)
+        images: list of (orig_path, thumbnail_or_temp, is_animated)
+        For animated: (orig_path, temp_path, True)
+        For static: (orig_path, thumbnail, False)
         """
         num_columns = max(1, self.scroll_area.width() // (self.image_width + 20))
 
-        for i, (image_path, thumbnail, is_webp) in enumerate(images):
+        for i, (image_path, thumb_or_temp, is_animated) in enumerate(images):
             label = QLabel()
             label.setAlignment(Qt.AlignCenter)
             label.setObjectName(image_path)
 
-            if is_webp:
+            if is_animated:
                 # We'll lazy-load the QMovie upon visibility
                 self.webp_movies[image_path] = None
+                self.animated_temp_map[image_path] = None  # temp path will be set on demand
                 # Placeholder gray
                 placeholder = QImage(self.image_width, self.image_height, QImage.Format_ARGB32)
                 placeholder.fill(QColor("darkGray"))
                 label.setPixmap(QPixmap.fromImage(placeholder))
             else:
                 # Static image
-                pixmap = QPixmap.fromImage(thumbnail)
+                pixmap = QPixmap.fromImage(thumb_or_temp)
                 label.setPixmap(pixmap)
                 self.image_cache[image_path] = pixmap
 
@@ -464,7 +478,7 @@ class MainWindow(QMainWindow):
         for label in self.image_labels:
             label.setMouseTracking(True)
 
-        # Update to start playing any visible WebPs
+        # Update to start playing any visible animated images
         self.update_visible_movies()
 
     # -----------------------------------------------------------------------
@@ -504,18 +518,29 @@ class MainWindow(QMainWindow):
 
     def ensure_webp_movie_started(self, label):
         """
-        If label is for a WebP and we haven't started a QMovie yet, do so.
-        Keep aspect ratio to fit self.image_width/height.
+        If label is for an animated image and we haven't started a QMovie yet, do so.
+        Create temp file and QMovie only when needed.
         """
         path = label.objectName()
         if path not in self.webp_movies:
-            return  # not a WebP
-
+            return  # not animated
+        temp_path = self.animated_temp_map.get(path)
+        if temp_path is None or not os.path.exists(temp_path):
+            # Create temp file for this image
+            base = os.path.basename(path)
+            temp_dir = getattr(self, 'temp_dir', tempfile.gettempdir())
+            temp_path = os.path.join(temp_dir, base)
+            try:
+                shutil.copy2(path, temp_path)
+            except Exception as e:
+                print(f"[ERROR] Could not create temp file for {path}: {e}")
+                return
+            self.animated_temp_map[path] = temp_path
+        # Now temp_path exists
         if self.webp_movies[path] is None:
-            movie = QMovie(path)
+            movie = QMovie(temp_path)
             if not movie.isValid():
                 return
-
             # Jump to frame 0 to measure original dimension
             movie.jumpToFrame(0)
             first_frame = movie.currentImage()
@@ -527,7 +552,6 @@ class MainWindow(QMainWindow):
                     scaled_w = int(orig_w * ratio)
                     scaled_h = int(orig_h * ratio)
                     movie.setScaledSize(QSize(scaled_w, scaled_h))
-
             movie.setProperty("loopCount", 0)
             self.webp_movies[path] = movie
             label.setMovie(movie)
@@ -542,8 +566,8 @@ class MainWindow(QMainWindow):
 
     def stop_webp_movie(self, label):
         """
-        Stop the movie if it's playing and detach from label
-        to free resources (and unlock the file).
+        Stop the movie if it's playing and detach from label.
+        Also delete the temp file if present.
         """
         path = label.objectName()
         if path in self.webp_movies:
@@ -551,6 +575,16 @@ class MainWindow(QMainWindow):
             if movie:
                 movie.stop()
                 label.setMovie(None)
+                movie.deleteLater()
+                self.webp_movies[path] = None
+            # Remove temp file if exists
+            temp_path = self.animated_temp_map.get(path)
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+            self.animated_temp_map[path] = None
 
     # -----------------------------------------------------------------------
     # Event filter for left/right click
@@ -584,10 +618,10 @@ class MainWindow(QMainWindow):
 
     def move_image_to_subfolder(self, image_path, subfolder):
         """
-        Strategy A: Unload QMovie before moving to avoid file-in-use errors on Windows.
+        Unload QMovie and delete temp file before moving to avoid file-in-use errors.
         Also remove the label from self.image_labels so we don't reference a deleted label.
         """
-        # 1) Stop/unload if it's a WebP
+        # 1) Stop/unload if it's animated
         if image_path in self.webp_movies:
             movie = self.webp_movies[image_path]
             if movie:
@@ -596,10 +630,18 @@ class MainWindow(QMainWindow):
             label = self.find_label_by_path(image_path)
             if label and label.movie() == movie:
                 label.setMovie(None)
-            # Request Qt to delete it
             if movie:
                 movie.deleteLater()
             self.webp_movies[image_path] = None
+        # Remove temp file if exists
+        temp_path = self.animated_temp_map.get(image_path)
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+        if image_path in self.animated_temp_map:
+            del self.animated_temp_map[image_path]
 
         # Force Qt to release file handles
         QApplication.processEvents()
@@ -625,6 +667,7 @@ class MainWindow(QMainWindow):
 
             # Update the ITEM button color
             self.update_item_button_color(self.current_item)
+
 
         except OSError as e:
             print(f"Error moving file: {e}")
