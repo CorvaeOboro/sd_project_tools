@@ -1,10 +1,5 @@
-import os
 import re
-import sys
 from typing import Dict
-
-# Insert your ComfyUI path so Comfy can find its necessary modules, if needed:
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'comfy'))
 
 class OBOROTextStrengthMultiplierNode:
     """

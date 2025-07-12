@@ -22,6 +22,7 @@ or manually install:
 
 # Launcher
 - [launch_tools.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/launch_tools.py) = Central launcher UI for all project tools 
+- <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/launch_tools.png?raw=true" height="120" />
 
 # Review and Ranking tools
 - [image_review_and_rank_multi_project.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi_project.py) = project image reviewer , quickly rank images into subfolders using left click = 1 and right click = 2 , colorizes by amount 
@@ -56,6 +57,7 @@ located in /comfyui/ folder , copy into comfyui custom_nodes  to install
 
 # video tools
 - [video_clip_marker.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_clip_marker.py) = tool for marking and processing video clips
+- <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/video_clip_marker.png?raw=true" height="120" />
 - [video_combine.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_combine.py) = GUI tool for combining videos, adjusting speed, removing first frames, and batch processing video folders. Uses ffmpeg
 - [video_add_audio.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_add_audio.py) = quick Add audio to a video file using ffmpeg and ffprobe. Supports both GUI and CLI modes. Drag-and-drop interface.
 - [video_place_in_image_composite.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_place_in_image_composite.py) = GUI tool to composite a video into a region of an image using template matching and homography. 
@@ -66,7 +68,7 @@ located in /comfyui/ folder , copy into comfyui custom_nodes  to install
 - [video_editor_word_rating.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_editor_word_rating.py) = GUI tool to rate video frames using words 
 - [video_review_and_rank_multi_project.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_review_and_rank_multi_project.py) =UI for reviewing and ranking video files
 
-# audio tools
+# voice action tools
 - [voice_action_organizer.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/voice_action_organizer.py) = GUI tool for offline speech recognition (using Vosk) to trigger hotkeys or move selected files in Windows Explorer using spoken commands. JSON action management. Requires the [Vosk speech model](https://alphacephei.com/vosk/models)
 - <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/voice_action_organizer.png?raw=true" height="120" />
 

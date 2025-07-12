@@ -1,11 +1,6 @@
-import os
 import re
-import sys
 import random
 from typing import Dict
-
-# Insert your ComfyUI path so Comfy can find its necessary modules, if needed:
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'comfy'))
 
 class OBOROLoraRandomizerNode:
     """
@@ -33,7 +28,9 @@ class OBOROLoraRandomizerNode:
                 "highlight": ("BOOLEAN", {"default": False}),
                 "seed": ("INT", {"default": 0}),
             },
-            "optional": {},
+            "optional": {
+                "debug_prints": ("BOOLEAN", {"default": False}),
+            },
             "hidden": {},
         }
 
@@ -44,30 +41,34 @@ class OBOROLoraRandomizerNode:
     CATEGORY = "OBORO"          # Category name for where this node appears
     OUTPUT_NODE = False         # Whether this node can terminate a workflow
 
-    def parse_lora_syntax(self, text: str) -> Dict[str, float]:
+    def _debug_print(self, debug_prints, *args, **kwargs):
+        if debug_prints:
+            print(*args, **kwargs)
+
+    def parse_lora_syntax(self, text: str, debug_prints: bool = False) -> Dict[str, float]:
         """
         Parse LoRA strings into a dictionary of {lora_name: strength}.
         """
         lora_pattern = r"<lora:([^:<>]+):([0-9]*\.?[0-9]+)>"
         matches = re.findall(lora_pattern, text)
         parsed_loras = {name.strip(): float(strength) for name, strength in matches}
-        print("Parsed LoRA syntax:", parsed_loras)
+        self._debug_print(debug_prints, "Parsed LoRA syntax:", parsed_loras)
         return parsed_loras
 
-    def format_lora_syntax(self, loras: Dict[str, float]) -> str:
+    def format_lora_syntax(self, loras: Dict[str, float], debug_prints: bool = False) -> str:
         """
         Format a dictionary of {lora_name: strength} back into LoRA syntax.
         Ensure proper formatting even if the dictionary is empty.
         """
         if not loras:
-            print("No LoRAs to format. Returning empty string.")
+            self._debug_print(debug_prints, "No LoRAs to format. Returning empty string.")
             return ""
 
         formatted = " ".join(f"<lora:{name}:{strength:.2f}>" for name, strength in loras.items())
-        print("Formatted LoRA syntax:", formatted)
+        self._debug_print(debug_prints, "Formatted LoRA syntax:", formatted)
         return formatted
 
-    def randomize_strengths(self, loras: Dict[str, float], seed: int) -> Dict[str, float]:
+    def randomize_strengths(self, loras: Dict[str, float], seed: int, debug_prints: bool = False) -> Dict[str, float]:
         """
         Randomize the strengths of LoRAs while keeping total under total_strength.
         Connect the random seed to the main seed for reproducibility.
@@ -77,7 +78,12 @@ class OBOROLoraRandomizerNode:
 
         total_available = self.total_strength
         randomized_loras = {}
-        for name in loras.keys():
+        
+        # Convert keys to list and shuffle to randomize the order of processing
+        lora_names = list(loras.keys())
+        random.shuffle(lora_names)
+        
+        for name in lora_names:
             strength = min(random.uniform(0, self.max_individual_strength), total_available)
             randomized_loras[name] = strength
             total_available -= strength
@@ -89,10 +95,10 @@ class OBOROLoraRandomizerNode:
             if name not in randomized_loras:
                 randomized_loras[name] = 0.0
 
-        print("Randomized LoRA strengths:", randomized_loras)
+        self._debug_print(debug_prints, "Randomized LoRA strengths:", randomized_loras)
         return randomized_loras
 
-    def highlight_random_lora(self, loras: Dict[str, float], seed: int) -> Dict[str, float]:
+    def highlight_random_lora(self, loras: Dict[str, float], seed: int, debug_prints: bool = False) -> Dict[str, float]:
         """
         Highlight a single LoRA by setting it to a high strength and others to a low strength.
         Connect the random seed to the main seed for reproducibility.
@@ -101,40 +107,40 @@ class OBOROLoraRandomizerNode:
             random.seed(seed)
 
         if not loras:
-            print("No LoRAs to highlight. Returning empty dictionary.")
+            self._debug_print(debug_prints, "No LoRAs to highlight. Returning empty dictionary.")
             return {}
 
         chosen_lora = random.choice(list(loras.keys()))
         highlighted_loras = {name: 0.01 for name in loras.keys()}
         highlighted_loras[chosen_lora] = 0.9
-        print(f"Highlighted LoRA: {chosen_lora}", highlighted_loras)
+        self._debug_print(debug_prints, f"Highlighted LoRA: {chosen_lora}", highlighted_loras)
         return highlighted_loras
 
-    def process(self, text: str, randomize: bool = False, highlight: bool = False, seed: int = 0, *args, **kwargs) -> tuple:
+    def process(self, text: str, randomize: bool = False, highlight: bool = False, seed: int = 0, debug_prints: bool = False, *args, **kwargs) -> tuple:
         """
         Process the input text based on the selected modes.
         """
-        print("Input Text:", text)
+        self._debug_print(debug_prints, "Input Text:", text)
 
         if not randomize and not highlight:
-            print("Pass-through mode: No changes made.")
+            self._debug_print(debug_prints, "Pass-through mode: No changes made.")
             return (text,)  # Pass through if both modes are off
 
-        loras = self.parse_lora_syntax(text)
+        loras = self.parse_lora_syntax(text, debug_prints=debug_prints)
 
         if randomize:
-            loras = self.randomize_strengths(loras, seed)
+            loras = self.randomize_strengths(loras, seed, debug_prints=debug_prints)
 
         if highlight:
-            loras = self.highlight_random_lora(loras, seed)
+            loras = self.highlight_random_lora(loras, seed, debug_prints=debug_prints)
 
-        final_loras = self.format_lora_syntax(loras)
+        final_loras = self.format_lora_syntax(loras, debug_prints=debug_prints)
 
         if not isinstance(final_loras, str):
-            print("Error: Final output is not a string.")
+            self._debug_print(debug_prints, "Error: Final output is not a string.")
             final_loras = ""
 
-        print(f"FINAL LoRA Output: {final_loras}")
+        self._debug_print(debug_prints, f"FINAL LoRA Output: {final_loras}")
         return (final_loras,)  # Return as a tuple
 
 # ComfyUI needs to know which classes to load when scanning your .py file

@@ -1,16 +1,4 @@
 import os
-import re
-import sys
-import json
-import locale
-from datetime import datetime
-from pathlib import Path
-
-# Insert your ComfyUI path so Comfy can find its necessary modules, if needed:
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'comfy'))
-
-# Store the original locale for consistency with other operations
-original_locale = locale.setlocale(locale.LC_TIME, '')
 
 class OBOROLoadTextFileGraceful:
     """
@@ -94,7 +82,7 @@ NODE_CLASS_MAPPINGS = {
     "OBOROLoadTextFileGraceful": OBOROLoadTextFileGraceful,
 }
 
-# (Optional) Provide a human-readable display name for your node
+# Provide a human-readable display name for your node
 NODE_DISPLAY_NAME_MAPPINGS = {
     "OBOROLoadTextFileGraceful": "Load Text File Graceful",
 }

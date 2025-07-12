@@ -1,10 +1,5 @@
-import os
 import re
-import sys
 from typing import Dict
-
-# Insert your ComfyUI path so Comfy can find its necessary modules, if needed:
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'comfy'))
 
 class OBOROLoraStringMultiplierNode:
     """
@@ -24,6 +19,10 @@ class OBOROLoraStringMultiplierNode:
     def __init__(self):
         pass  # No preset defaults; all values are provided via node inputs.
 
+    def _debug_print(self, debug_prints, *args, **kwargs):
+        if debug_prints:
+            print(*args, **kwargs)
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -35,7 +34,9 @@ class OBOROLoraStringMultiplierNode:
                 "total_cap_enabled": ("BOOLEAN", {"default": False}),
                 "total_cap": ("FLOAT", {"default": 1.0}),
             },
-            "optional": {},
+            "optional": {
+                "debug_prints": ("BOOLEAN", {"default": False}),
+            },
             "hidden": {},
         }
 
@@ -45,7 +46,7 @@ class OBOROLoraStringMultiplierNode:
     CATEGORY = "OBORO"
     OUTPUT_NODE = False
 
-    def parse_lora_syntax(self, text: str) -> Dict[str, float]:
+    def parse_lora_syntax(self, text: str, debug_prints: bool = False) -> Dict[str, float]:
         """
         Parse LoRA strings from the input text.
         Expected LoRA syntax format: <lora:name:strength>
@@ -54,18 +55,18 @@ class OBOROLoraStringMultiplierNode:
         lora_pattern = r"<lora:([^:<>]+):([0-9]*\.?[0-9]+)>"
         matches = re.findall(lora_pattern, text)
         parsed_loras = {name.strip(): float(strength) for name, strength in matches}
-        print("Parsed LoRA syntax:", parsed_loras)
+        self._debug_print(debug_prints, "Parsed LoRA syntax:", parsed_loras)
         return parsed_loras
 
-    def format_lora_syntax(self, loras: Dict[str, float]) -> str:
+    def format_lora_syntax(self, loras: Dict[str, float], debug_prints: bool = False) -> str:
         """
         Convert the dictionary of LoRAs back into a formatted string.
         """
         if not loras:
-            print("No LoRAs to format. Returning empty string.")
+            self._debug_print(debug_prints, "No LoRAs to format. Returning empty string.")
             return ""
         formatted = " ".join(f"<lora:{name}:{strength:.2f}>" for name, strength in loras.items())
-        print("Formatted LoRA syntax:", formatted)
+        self._debug_print(debug_prints, "Formatted LoRA syntax:", formatted)
         return formatted
 
     def process(
@@ -76,28 +77,29 @@ class OBOROLoraStringMultiplierNode:
         individual_cap: float,
         total_cap_enabled: bool,
         total_cap: float,
+        debug_prints: bool = False,
         *args,
         **kwargs,
     ) -> tuple:
         """
         Process the input text by applying the multiplier and enforcing the specified caps.
         """
-        print("Input Text:", text)
-        loras = self.parse_lora_syntax(text)
+        self._debug_print(debug_prints, "Input Text:", text)
+        loras = self.parse_lora_syntax(text, debug_prints=debug_prints)
 
         # Apply the multiplier to each LoRA strength.
         multiplied_loras = {}
         for name, strength in loras.items():
             new_strength = strength * multiplier
             multiplied_loras[name] = new_strength
-        print("After applying multiplier:", multiplied_loras)
+        self._debug_print(debug_prints, "After applying multiplier:", multiplied_loras)
 
         # Enforce individual strength cap if enabled.
         if individual_cap_enabled:
             for name in multiplied_loras:
                 original = multiplied_loras[name]
                 multiplied_loras[name] = min(original, individual_cap)
-            print("After enforcing individual cap:", multiplied_loras)
+            self._debug_print(debug_prints, "After enforcing individual cap:", multiplied_loras)
 
         # Enforce total strength cap if enabled.
         if total_cap_enabled:
@@ -106,13 +108,13 @@ class OBOROLoraStringMultiplierNode:
                 scale_factor = total_cap / total_strength
                 for name in multiplied_loras:
                     multiplied_loras[name] *= scale_factor
-                print("After enforcing total cap, scale factor applied:", scale_factor)
-                print("LoRAs after total cap enforcement:", multiplied_loras)
+                self._debug_print(debug_prints, "After enforcing total cap, scale factor applied:", scale_factor)
+                self._debug_print(debug_prints, "LoRAs after total cap enforcement:", multiplied_loras)
             else:
-                print("Total strength within cap, no scaling needed:", total_strength)
+                self._debug_print(debug_prints, "Total strength within cap, no scaling needed:", total_strength)
 
-        final_text = self.format_lora_syntax(multiplied_loras)
-        print("Final output text:", final_text)
+        final_text = self.format_lora_syntax(multiplied_loras, debug_prints=debug_prints)
+        self._debug_print(debug_prints, "Final output text:", final_text)
         return (final_text,)
 
 # ComfyUI needs to know which classes to load when scanning your .py file.

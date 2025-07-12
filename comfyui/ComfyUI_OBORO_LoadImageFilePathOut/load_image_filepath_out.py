@@ -1,24 +1,14 @@
 import os
-import re
-import sys
-import json
 from PIL import Image
-from PIL.PngImagePlugin import PngInfo
 import numpy as np
-import locale
-from datetime import datetime
 from pathlib import Path
 import os
 import torch
 from PIL import ImageOps
-import comfy
 import folder_paths
-import base64
-from io import BytesIO
 import torch
 import hashlib
 from pathlib import Path
-from typing import Iterable
 from PIL import Image, ImageOps
 import numpy as np
 
@@ -76,7 +66,6 @@ class OBOROLoadImageFilePathOut:
             return "Invalid image path: {}".format(image_path)
 
         return True
-
 
 def get_file_name_without_extension(file_path):
     file_name_with_extension = os.path.basename(file_path)
