@@ -5,7 +5,9 @@
 # diffusion_project_tools
 - a collection of tools for interacting with image synthesis projects , organizing , reviewing , and generating . 
 
-| review | comfy | sort| prompt | video | audio | 
+| review | comfy | prompt | video | audio | 
+| :---: | :---: | :---: | :---: | :---: |
+| <a href="https://github.com/CorvaeOboro/sd_project_tools#review"> <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/thumb_image.png?raw=true" width="140" height="140" /> </a>| <a href="https://github.com/CorvaeOboro/sd_project_tools#comfy"> <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/thumb_comfy.png?raw=true" width="140" height="140" />  </a>  |  <a href="https://github.com/CorvaeOboro/sd_project_tools#prompt"> <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/thumb_prompt.png?raw=true" width="140" height="140" />  </a>  | <a href="https://github.com/CorvaeOboro/sd_project_tools#video"> <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/thumb_video.png?raw=true" width="140" height="140" />  </a>  | <a href="https://github.com/CorvaeOboro/sd_project_tools#audio"> <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/thumb_voice.png?raw=true" width="140" height="140" /> </a>|
 
 # install
 - install python 3.10
@@ -24,7 +26,7 @@ or manually install:
 - [launch_tools.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/launch_tools.py) = Central launcher UI for all project tools 
 - <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/launch_tools.png?raw=true" height="120" />
 
-# Review and Ranking tools
+# Review and Rank
 - [image_review_and_rank_multi_project.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi_project.py) = project image reviewer , quickly rank images into subfolders using left click = 1 and right click = 2 , colorizes by amount 
  <a href="https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi_project.py"> <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main//docs/image_review_and_rank_multi_project.png?raw=true" height="200" /> </a>
 - [image_review_and_rank.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank.py) = simple image viewer from a folderpath , quickly rank images into subfolders using 1,2, or 3 . navigate with arrows . view as tiled texture with T 
@@ -38,24 +40,22 @@ located in /comfyui/ folder , copy into comfyui custom_nodes  to install
 - [Load Image FilePath Out](/comfyui/ComfyUI_OBORO_LoadImageFilePathOut/load_image_filepath_out.py) = Similar to the load image node, additionaly outputs the filepath and folderpath of the loaded image to strings
 - [Load Text File Graceful](/comfyui/ComfyUI_OBORO_LoadTextFileGraceful/load_text_file_graceful.py) = Loads text as string , handling invalid files gracefully without crashing
 
-# tensor info and sorting
+# Tensor Info and Sorting
 - [tensor_sort_civitai_files.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/sd_sort_civitai_files.py) = sorts model checkpoints and LoRAs based on the info from corresponding civitai info , models by base model , then by type
 - [tensor_info_civitai_get.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tensor_info_civitai_get.py) = sorts model checkpoints and LoRAs based on the civitai info, models by base model, then by type such as LoRA
 - [tensor_sort_civitai_by_category.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tensor_sort_civitai_by_category.py) = sorts model checkpoints and LoRAs based on the category "nsfw" and "poi" in corresponding civitai info
 
-# project tools
+# Prompt Entry
 - [gen_project_prompt_entry.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_project_prompt_entry.py) = GUI dashboard for managing multiple item prompts , support for SDXL and SD1.5 positive/negative prompts and FLUX and VIDEO prompts
 - <a href="https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_project_prompt_entry.py"> <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main//docs/gen_project_prompt_entry.png?raw=true" height="200" /> </a>
 
-# image prompt tools
+# Image Tools
+- [image_editor_layered.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_editor_layered.py) = basic GUI tool to edit an image with multiple layers
 - [image_text_prompt_tools.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_text_prompt_tools.py) = GUI tool to drag drop image and for prompt management. merge multiple prompts without duplicates, balance prompt strengths, simplify prompt structure (remove parentheses), scale LoRA strengths to target maximum, 
 - [lora_variants.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/lora_variants.py) = input a prompt with loras and generate all permutations of strengths , within a range of total lora strength and per lora strengths . the output can then be used for x/y plot or as wildcard
 - [lora_previews_to_list.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/lora_previews_to_list.py) = given a folder of lora previews creates a list
 
-# image tools
-- [image_editor_layered.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_editor_layered.py) = basic GUI tool to edit an image with multiple layers
-
-# video tools
+# Video Tools
 - [video_clip_marker.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_clip_marker.py) = tool for marking and processing video clips
 - <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/video_clip_marker.png?raw=true" height="120" />
 - [video_combine.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_combine.py) = GUI tool for combining videos, adjusting speed, removing first frames, and batch processing video folders. Uses ffmpeg
@@ -68,11 +68,11 @@ located in /comfyui/ folder , copy into comfyui custom_nodes  to install
 - [video_editor_word_rating.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_editor_word_rating.py) = GUI tool to rate video frames using words 
 - [video_review_and_rank_multi_project.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/video_review_and_rank_multi_project.py) =UI for reviewing and ranking video files
 
-# voice action tools
+# Voice Action Tools
 - [voice_action_organizer.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/voice_action_organizer.py) = GUI tool for offline speech recognition (using Vosk) to trigger hotkeys or move selected files in Windows Explorer using spoken commands. JSON action management. Requires the [Vosk speech model](https://alphacephei.com/vosk/models)
 - <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/voice_action_organizer.png?raw=true" height="120" />
 
-# auto1111 webui project workflow
+# Auto1111 WebUI Project Workflow
 earlier versions of this project utilized the auto1111 webui , these are examples of that workflow:
 - requires [auto1111 webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) with --api for image synthesis
 - each "project" is a folder with a source image ( target img2img ) , a .project file ( settings overrides ) , and a 'selected' subfolder containing synthesized images . the python tools included help to generate such a structure and to then batch process multiple projects . 
