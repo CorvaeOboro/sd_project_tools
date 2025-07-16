@@ -32,9 +32,9 @@ class OBORO_CLAHEImageNode:
                 "input_image": ("IMAGE",),
             },
             "optional": {
-                "clip_limit": ("FLOAT", {"default": 2.0, "min": 0.0}),
-                "tile_grid_width": ("INT", {"default": 8, "min": 1}),
-                "tile_grid_height": ("INT", {"default": 8, "min": 1})
+                "clip_limit": ("FLOAT", {"default": 3.0, "min": 0.0}),
+                "tile_grid_width": ("INT", {"default": 12, "min": 1}),
+                "tile_grid_height": ("INT", {"default": 12, "min": 1})
             }
         }
 

@@ -8,19 +8,24 @@ class OBORO_ImageRetinexEnhancementNode:
     A ComfyUI node that applies Multi-Scale Retinex with Color Restoration (MSRCR)
     to enhance the dynamic range and color constancy of input images.
 
-    This advanced algorithm is particularly useful in challenging lighting situations,
-    as it enhances details in both shadows and highlights while preserving natural colors.
+    This node implements the MSRCR algorithm as described in the Retinex literature
+    (see e.g. Jobson, Rahman, and Woodell, "A Multiscale Retinex for Bridging the Gap Between Color Images and the Human Observation of Scenes," IEEE Transactions on Image Processing, 1997).
+
+    The parameters exposed in this node correspond to the original MSRCR algorithm notation:
+
+        - gaussian_sigma_small, gaussian_sigma_medium, gaussian_sigma_large: σ₁, σ₂, σ₃ (Gaussian blur scales)
+        - color_restoration_strength: α (alpha, color restoration strength)
+        - color_restoration_offset: β (beta, color restoration offset)
+        - output_gain: G (gain, output multiplier)
+        - output_offset: b (offset, output offset)
+
+    Variable names in this implementation are verbose for clarity, but map directly to the standard
+    notation in the literature. See the referenced paper for mathematical details.
+
+    This algorithm is useful in lighting situations, as it enhances details in both shadows and highlights while preserving natural colors.
 
     The node processes images in a batch (expected shape: [B, H, W, C]) and supports both
     color (multi-channel) and grayscale (single channel) images.
-
-    Exposed Parameters:
-      - Sigma Scales: Three sigma values used for Gaussian blurring, controlling the scales at which
-        details are enhanced (default: 15.0, 80.0, 250.0).
-      - Alpha: Controls the strength of the color restoration factor (default: 125.0).
-      - Beta: Controls the offset of the color restoration factor (default: 46.0).
-      - Gain: Multiplier applied to the final result (default: 1.0).
-      - Offset: Subtracted from the MSRCR result before applying gain (default: 0.0).
 
     Note:
       The algorithm scales input images (assumed in [0, 1]) to [0, 255] internally,
@@ -35,31 +40,31 @@ class OBORO_ImageRetinexEnhancementNode:
                 "input_image": ("IMAGE",),
             },
             "optional": {
-                "sigma1": (
+                "gaussian_sigma_small": (
                     "FLOAT",
                     {"default": 15.0, "min": 0.1, "max": 500.0, "step": 0.1},
                 ),
-                "sigma2": (
+                "gaussian_sigma_medium": (
                     "FLOAT",
                     {"default": 80.0, "min": 0.1, "max": 500.0, "step": 0.1},
                 ),
-                "sigma3": (
+                "gaussian_sigma_large": (
                     "FLOAT",
                     {"default": 250.0, "min": 0.1, "max": 500.0, "step": 0.1},
                 ),
-                "alpha": (
+                "color_restoration_strength": (
                     "FLOAT",
                     {"default": 125.0, "min": 0.1, "max": 500.0, "step": 0.1},
                 ),
-                "beta": (
+                "color_restoration_offset": (
                     "FLOAT",
                     {"default": 46.0, "min": 0.1, "max": 500.0, "step": 0.1},
                 ),
-                "gain": (
+                "output_gain": (
                     "FLOAT",
                     {"default": 1.0, "min": 0.1, "max": 10.0, "step": 0.1},
                 ),
-                "offset": (
+                "output_offset": (
                     "FLOAT",
                     {"default": 0.0, "min": -100.0, "max": 100.0, "step": 0.1},
                 ),
@@ -73,25 +78,25 @@ class OBORO_ImageRetinexEnhancementNode:
     DESCRIPTION = (
         "Applies Multi-Scale Retinex with Color Restoration (MSRCR) to enhance dynamic range "
         "and color constancy. Ideal for improving details in both shadows and highlights under "
-        "challenging lighting conditions. Exposes parameters for sigma scales, alpha, beta, gain, "
-        "and offset for fine-tuning."
+        "challenging lighting conditions. Exposes parameters for Gaussian blur scales, color restoration strength/offset, and output gain/offset for fine-tuning."
     )
 
     def apply_retinex_enhancement(
-        self, input_image, sigma1, sigma2, sigma3, alpha, beta, gain, offset
+        self, input_image, gaussian_sigma_small, gaussian_sigma_medium, gaussian_sigma_large,
+        color_restoration_strength, color_restoration_offset, output_gain, output_offset
     ):
         """
         Applies the MSRCR algorithm to each image in the batch.
 
         Parameters:
             input_image (torch.Tensor): Batch of images in [B, H, W, C] format, with pixel values in [0, 1].
-            sigma1 (float): Sigma value for the first scale of Gaussian blurring.
-            sigma2 (float): Sigma value for the second scale of Gaussian blurring.
-            sigma3 (float): Sigma value for the third scale of Gaussian blurring.
-            alpha (float): Controls the strength of the color restoration.
-            beta (float): Controls the offset of the color restoration.
-            gain (float): Gain multiplier applied to the final result.
-            offset (float): Offset subtracted from the MSRCR result.
+            gaussian_sigma_small (float): Sigma value for the smallest scale of Gaussian blurring.
+            gaussian_sigma_medium (float): Sigma value for the medium scale of Gaussian blurring.
+            gaussian_sigma_large (float): Sigma value for the largest scale of Gaussian blurring.
+            color_restoration_strength (float): Controls the strength of the color restoration.
+            color_restoration_offset (float): Controls the offset of the color restoration.
+            output_gain (float): Gain multiplier applied to the final result.
+            output_offset (float): Offset subtracted from the MSRCR result.
 
         Returns:
             Tuple containing a single torch.Tensor of enhanced images.
@@ -104,7 +109,7 @@ class OBORO_ImageRetinexEnhancementNode:
         enhanced_images_list = []
 
         # Define sigma scales based on node parameters.
-        sigma_scales = [sigma1, sigma2, sigma3]
+        gaussian_sigma_scales = [gaussian_sigma_small, gaussian_sigma_medium, gaussian_sigma_large]
 
         epsilon = 1e-6  # Small constant to avoid log(0)
 
@@ -123,21 +128,21 @@ class OBORO_ImageRetinexEnhancementNode:
                 msr_result = np.zeros_like(image_scaled, dtype=np.float64)
 
                 # Apply Single-Scale Retinex (SSR) for each sigma value and accumulate the results.
-                for current_sigma in sigma_scales:
-                    blurred_image = cv2.GaussianBlur(image_scaled, (0, 0), current_sigma)
+                for current_gaussian_sigma in gaussian_sigma_scales:
+                    blurred_image = cv2.GaussianBlur(image_scaled, (0, 0), current_gaussian_sigma)
                     msr_result += np.log(image_scaled + epsilon) - np.log(blurred_image + epsilon)
 
                 # Average the SSR results across scales.
-                msr_result = msr_result / float(len(sigma_scales))
+                msr_result = msr_result / float(len(gaussian_sigma_scales))
 
                 # Compute the Color Restoration Factor.
                 sum_channels = np.sum(image_scaled, axis=2, keepdims=True) + epsilon
-                color_restoration = beta * (
-                    np.log(alpha * image_scaled + epsilon) - np.log(sum_channels)
+                color_restoration_factor = color_restoration_offset * (
+                    np.log(color_restoration_strength * image_scaled + epsilon) - np.log(sum_channels)
                 )
 
                 # Combine MSR and Color Restoration to obtain the MSRCR result.
-                msrcr_result = gain * (msr_result * color_restoration - offset)
+                msrcr_result = output_gain * (msr_result * color_restoration_factor - output_offset)
 
                 # Normalize each channel independently to [0, 1]
                 normalized_result = np.zeros_like(msrcr_result)
@@ -155,13 +160,13 @@ class OBORO_ImageRetinexEnhancementNode:
                 # For grayscale images, apply Multi-Scale Retinex without color restoration.
                 msr_result = np.zeros_like(image_scaled[:, :, 0], dtype=np.float64)
 
-                for current_sigma in sigma_scales:
-                    blurred_image = cv2.GaussianBlur(image_scaled, (0, 0), current_sigma)
+                for current_gaussian_sigma in gaussian_sigma_scales:
+                    blurred_image = cv2.GaussianBlur(image_scaled, (0, 0), current_gaussian_sigma)
                     msr_result += np.log(image_scaled[:, :, 0] + epsilon) - np.log(
                         blurred_image[:, :, 0] + epsilon
                     )
 
-                msr_result = msr_result / float(len(sigma_scales))
+                msr_result = msr_result / float(len(gaussian_sigma_scales))
                 channel_min = np.min(msr_result)
                 channel_max = np.max(msr_result)
                 normalized_result = (msr_result - channel_min) / (

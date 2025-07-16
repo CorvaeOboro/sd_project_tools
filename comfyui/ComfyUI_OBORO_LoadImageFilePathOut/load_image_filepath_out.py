@@ -1,16 +1,26 @@
+"""
+OBOROLoadImageFilePathOut - a ComfyUI Custom Node
+------------------------------
+Load image from a specified file path string and outputs the filepath 
+
+Inputs:
+    image: (str) Path to the image file to load
+
+Outputs:
+    image: Loaded image as a torch tensor
+    mask: Alpha mask or default mask
+    file name: Name of the loaded file (no extension)
+    folder path: Directory containing the image file
+
+useful for workflows where you need to pass along the image's file path or name for downstream processing or logging.
+"""
 import os
-from PIL import Image
-import numpy as np
-from pathlib import Path
-import os
-import torch
-from PIL import ImageOps
-import folder_paths
-import torch
 import hashlib
 from pathlib import Path
-from PIL import Image, ImageOps
 import numpy as np
+import torch
+from PIL import Image, ImageOps
+import folder_paths
 
 class OBOROLoadImageFilePathOut:
     @classmethod
@@ -39,10 +49,11 @@ class OBOROLoadImageFilePathOut:
             mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
             
         dirname, basename = os.path.split(image_path)
-        file_name =  get_file_name_without_extension(image_path)
+        file_name = self.get_file_name_without_extension(image_path)
         folder_path = dirname
         return (image, mask, file_name, folder_path)
 
+    @staticmethod
     def _resolve_path(image) -> Path:
         image_path = Path(folder_paths.get_annotated_filepath(image))
         return image_path
@@ -67,10 +78,11 @@ class OBOROLoadImageFilePathOut:
 
         return True
 
-def get_file_name_without_extension(file_path):
-    file_name_with_extension = os.path.basename(file_path)
-    file_name, _ = os.path.splitext(file_name_with_extension)
-    return file_name
+    @staticmethod
+    def get_file_name_without_extension(file_path):
+        file_name_with_extension = os.path.basename(file_path)
+        file_name, _ = os.path.splitext(file_name_with_extension)
+        return file_name
 
 NODE_CLASS_MAPPINGS = {
     'OBOROLoadImageFilePathOut': OBOROLoadImageFilePathOut,

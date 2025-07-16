@@ -1,5 +1,5 @@
 
-class OBOROStringTokenCount:
+class OBOROTextTokenCount:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -43,9 +43,9 @@ class OBOROStringTokenCount:
 
 
 NODE_CLASS_MAPPINGS = {
-    'OBOROStringTokenCount': OBOROStringTokenCount,
+    'OBOROTextTokenCount': OBOROTextTokenCount,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    'OBOROStringTokenCount': 'String Token Count',
+    'OBOROTextTokenCount': 'Text Token Count',
 }

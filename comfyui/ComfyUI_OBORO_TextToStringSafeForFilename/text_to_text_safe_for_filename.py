@@ -2,9 +2,9 @@ import re
 import string
 import unicodedata
 
-class OBOROStringToStringSafeForFilename:
+class OBOROTextToTextSafeForFilename:
     """
-    This node converts a string into a filename-safe variant by:
+    This node converts a text input into a filename-safe variant by:
       - Replacing or removing invalid characters
       - Handling Windows-reserved filenames
       - Optionally normalizing Unicode
@@ -112,9 +112,9 @@ class OBOROStringToStringSafeForFilename:
 
 # Register the node
 NODE_CLASS_MAPPINGS = {
-    "OBOROStringToStringSafeForFilename": OBOROStringToStringSafeForFilename,
+    "OBOROTextToTextSafeForFilename": OBOROTextToTextSafeForFilename,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "OBOROStringToStringSafeForFilename": "Text To Filename Safe Text",
+    "OBOROTextToTextSafeForFilename": "Text To Filename Safe Text",
 }

@@ -1,5 +1,5 @@
 """
-OBORO Random Checkpoint Selector - a ComfyUI custom_node
+OBORO Checkpoint Random Selector - a ComfyUI custom_node
 
 Randomly selects a Stable Diffusion checkpoint from a specified category (SDXL, PONY, SD15),
 using a deterministic randomization at a time interval , such as every hour .
@@ -25,7 +25,7 @@ import os
 import random
 from datetime import datetime, timedelta
 
-class OBORORandomCheckpointSelector:
+class OBOROCheckpointRandomSelector:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -69,9 +69,9 @@ class OBORORandomCheckpointSelector:
         return folder, file_path, filename
 
 NODE_CLASS_MAPPINGS = {
-    'OBORORandomCheckpointSelector': OBORORandomCheckpointSelector,
+    'OBOROCheckpointRandomSelector': OBOROCheckpointRandomSelector,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    'OBORORandomCheckpointSelector': 'Random Checkpoint Selector',
+    'OBOROCheckpointRandomSelector': 'Checkpoint Random Selector',
 }

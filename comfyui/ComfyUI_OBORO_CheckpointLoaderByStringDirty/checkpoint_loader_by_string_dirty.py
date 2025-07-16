@@ -1,18 +1,12 @@
 """
 OBORO Checkpoint Loader By String Dirty - a ComfyUI Custom Node
 
-This node loads a Stable Diffusion checkpoint by matching a string input to available checkpoint files.
-It is robust to different input formats, supporting both full/relative paths and just filenames.
-
-Features:
-- Accepts a checkpoint name or relative path as input 
-- Searches for a compatible checkpoint file in the ComfyUI checkpoints directory.
-- Matching tries exact filename, base name (without extension), and partial filename matches.
-- Outputs the loaded model, CLIP, VAE, and the resolved checkpoint filename.
+Loads a Stable Diffusion checkpoint by matching a string input to available checkpoint files.
+supporting full paths, relative paths, or filenames 
 
 Inputs:
     ckpt_name: The name or path of the checkpoint to load (string).
-    DEBUG_MODE: Enable verbose debug output 
+    DEBUG_MODE: Enable debug output 
 
 Outputs:
     model: The loaded model object.
@@ -24,74 +18,18 @@ Outputs:
 import os
 import folder_paths
 import nodes
-import os
-
 
 class OBOROCheckpointLoaderByStringDirty:
-    @staticmethod
-    def debug_message(msg, DEBUG_MODE):
-        if DEBUG_MODE:
-            print(f"[OBOROCheckpointLoaderByStringDirty][DEBUG] {msg}")
-
-    @staticmethod
-    def _get_all_checkpoints_recursive(base_dir, exts=(".ckpt", ".safetensors", ".sft")):
-        """
-        Recursively collect all checkpoint files under base_dir, returning relative paths.
-        """
-        files = []
-        for root, dirs, filenames in os.walk(base_dir):
-            for f in filenames:
-                if any(f.endswith(ext) for ext in exts):
-                    rel_path = os.path.relpath(os.path.join(root, f), base_dir)
-                    # Normalize to use forward slashes for matching
-                    files.append(rel_path.replace("\\", "/"))
-        return files
-
-    @classmethod
-    def find_matching_filename(cls, input_string, filenames, DEBUG_MODE=False):
-        cls.debug_message(f"Searching for checkpoint: input_string='{input_string}'", DEBUG_MODE)
-        cls.debug_message(f"Available filenames: {filenames}", DEBUG_MODE)
-
-        # Normalize input: support both full/relative paths and just filenames
-        input_filename = os.path.basename(input_string)
-        input_base, input_ext = os.path.splitext(input_filename)
-        input_string_norm = input_string.replace("\\", "/")
-        cls.debug_message(f"Normalized input filename: {input_filename}", DEBUG_MODE)
-        cls.debug_message(f"Normalized input string for path: {input_string_norm}", DEBUG_MODE)
-
-        # Try exact relative path match
-        for filename in filenames:
-            if input_string_norm == filename:
-                cls.debug_message(f"Exact relative path match found: {filename}", DEBUG_MODE)
-                return filename
-
-        # Try exact filename match
-        for filename in filenames:
-            if input_filename == os.path.basename(filename):
-                cls.debug_message(f"Exact filename match found: {filename}", DEBUG_MODE)
-                return filename
-
-        # Try matching base name (without extension)
-        for filename in filenames:
-            filename_base, filename_ext = os.path.splitext(os.path.basename(filename))
-            if input_base == filename_base:
-                cls.debug_message(f"Base name match found: {filename}", DEBUG_MODE)
-                return filename
-
-        # Try partial filename match
-        for filename in filenames:
-            if input_filename in filename:
-                cls.debug_message(f"Partial filename match found: {filename}", DEBUG_MODE)
-                return filename
-
-        cls.debug_message(f"No match found for '{input_string}'", DEBUG_MODE)
-        raise FileNotFoundError(f"File '{input_string}' not found in checkpoint directory.")
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
-            "required": {"ckpt_name": ("STRING", {"default": ""})},
-            "optional": {"DEBUG_MODE": ("BOOLEAN", {"default": False})}
+            "required": {
+                "ckpt_name": ("STRING", {"default": ""}),
+            },
+            "optional": {
+                "DEBUG_MODE": ("BOOLEAN", {"default": False}),
+                "file_extensions": ("STRING", {"default": ".ckpt,.safetensors,.sft"}),
+            }
         }
 
     RETURN_TYPES = ("MODEL", "CLIP", "VAE", "STRING")
@@ -99,20 +37,103 @@ class OBOROCheckpointLoaderByStringDirty:
     FUNCTION = "load_checkpoint"
     CATEGORY = "OBORO"
 
-    def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True, DEBUG_MODE=False):
-        self.debug_message(f"load_checkpoint called with ckpt_name='{ckpt_name}', output_vae={output_vae}, output_clip={output_clip}, DEBUG_MODE={DEBUG_MODE}", DEBUG_MODE)
-        # Recursively collect all checkpoint files (relative paths)
-        checkpoints_dir = folder_paths.get_folder_paths("checkpoints")[0]
-        filenames = self._get_all_checkpoints_recursive(checkpoints_dir)
-        self.debug_message(f"Found {len(filenames)} checkpoint files in search path (recursive).", DEBUG_MODE)
-        ckpt_name_full = self.find_matching_filename(ckpt_name, filenames, DEBUG_MODE)
-        self.debug_message(f"Resolved checkpoint filename: {ckpt_name_full}", DEBUG_MODE)
+    @staticmethod
+    def debug_message(msg, DEBUG_MODE):
+        if DEBUG_MODE:
+            print(f"[OBOROCheckpointLoaderByStringDirty][DEBUG] {msg}")
+
+    @staticmethod
+    def _get_all_checkpoints_recursive_all_dirs(base_dirs, exts=(".ckpt", ".safetensors", ".sft")):
+        """
+        Recursively collect all checkpoint files under all base_dirs, returning (rel_path, base_dir) tuples.
+        exts: tuple of extensions (with leading dot)
+        """
+        files = []
+        for base_dir in base_dirs:
+            for root, dirs, filenames in os.walk(base_dir):
+                for f in filenames:
+                    if any(f.endswith(ext) for ext in exts):
+                        rel_path = os.path.relpath(os.path.join(root, f), base_dir)
+                        # Normalize to use forward slashes for matching
+                        files.append((rel_path.replace("\\", "/"), base_dir))
+        return files
+
+    @classmethod
+    def find_matching_filename(cls, input_string, filenames_with_dirs, DEBUG_MODE=False):
+        """
+        Robustly search for a checkpoint file matching the input string, regardless of slashes, case, or path format.
+        Tries all reasonable strategies (full path, filename, base name, partial match) in a case-insensitive way.
+        filenames_with_dirs: list of (rel_path, base_dir)
+        Returns: (rel_path, base_dir)
+        """
+        def norm(s):
+            return s.replace("\\", "/").lower()
+
+        input_string_norm = norm(input_string)
+        input_filename_norm = norm(os.path.basename(input_string))
+        input_base_norm, _ = os.path.splitext(input_filename_norm)
+
+        cls.debug_message(f"Searching for checkpoint: input_string='{input_string}'", DEBUG_MODE)
+        cls.debug_message(f"Available filenames: {[f for f, _ in filenames_with_dirs]}", DEBUG_MODE)
+        cls.debug_message(f"Normalized input string: {input_string_norm}", DEBUG_MODE)
+        cls.debug_message(f"Normalized input filename: {input_filename_norm}", DEBUG_MODE)
+        cls.debug_message(f"Normalized input base: {input_base_norm}", DEBUG_MODE)
+
+        # Normalize all filenames once
+        normed_filenames = [
+            (rel_path, base_dir, norm(rel_path), norm(os.path.basename(rel_path)), os.path.splitext(norm(os.path.basename(rel_path)))[0])
+            for rel_path, base_dir in filenames_with_dirs
+        ]
+
+        # 1. Exact relative path match (case-insensitive)
+        for rel_path, base_dir, fn_norm, _, _ in normed_filenames:
+            if input_string_norm == fn_norm:
+                cls.debug_message(f"Exact relative path match found: {rel_path} in {base_dir}", DEBUG_MODE)
+                return rel_path, base_dir
+
+        # 2. Exact filename match (case-insensitive)
+        for rel_path, base_dir, _, fn_base_norm, _ in normed_filenames:
+            if input_filename_norm == fn_base_norm:
+                cls.debug_message(f"Exact filename match found: {rel_path} in {base_dir}", DEBUG_MODE)
+                return rel_path, base_dir
+
+        # 3. Base name match (case-insensitive)
+        for rel_path, base_dir, _, _, base_norm in normed_filenames:
+            if input_base_norm == base_norm:
+                cls.debug_message(f"Base name match found: {rel_path} in {base_dir}", DEBUG_MODE)
+                return rel_path, base_dir
+
+        # 4. Partial filename match (case-insensitive)
+        for rel_path, base_dir, fn_norm, _, _ in normed_filenames:
+            if input_filename_norm in fn_norm:
+                cls.debug_message(f"Partial filename match found: {rel_path} in {base_dir}", DEBUG_MODE)
+                return rel_path, base_dir
+
+        # 5. Partial path match (case-insensitive, e.g. input_string is a substring of the path)
+        for rel_path, base_dir, fn_norm, _, _ in normed_filenames:
+            if input_string_norm in fn_norm:
+                cls.debug_message(f"Partial path match found: {rel_path} in {base_dir}", DEBUG_MODE)
+                return rel_path, base_dir
+
+        cls.debug_message(f"No match found for '{input_string}'", DEBUG_MODE)
+        raise FileNotFoundError(f"File '{input_string}' not found in checkpoint directories.")
+
+    def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True, DEBUG_MODE=False, file_extensions=".ckpt,.safetensors,.sft"):
+        self.debug_message(f"load_checkpoint called with ckpt_name='{ckpt_name}', output_vae={output_vae}, output_clip={output_clip}, DEBUG_MODE={DEBUG_MODE}, file_extensions='{file_extensions}'", DEBUG_MODE)
+        # Parse file_extensions string to tuple
+        exts = tuple(ext.strip() if ext.strip().startswith(".") else "." + ext.strip() for ext in file_extensions.split(",") if ext.strip())
+        self.debug_message(f"Using file extensions: {exts}", DEBUG_MODE)
+        # Collect all checkpoint files from all registered directories
+        checkpoints_dirs = folder_paths.get_folder_paths("checkpoints")
+        filenames_with_dirs = self._get_all_checkpoints_recursive_all_dirs(checkpoints_dirs, exts=exts)
+        self.debug_message(f"Found {len(filenames_with_dirs)} checkpoint files in all search paths (recursive).", DEBUG_MODE)
+        rel_path, base_dir = self.find_matching_filename(ckpt_name, filenames_with_dirs, DEBUG_MODE)
+        self.debug_message(f"Resolved checkpoint filename: {rel_path} in {base_dir}", DEBUG_MODE)
         loader = nodes.CheckpointLoaderSimple()
-        # Pass the full path to the loader
-        full_ckpt_path = os.path.join(checkpoints_dir, ckpt_name_full)
-        model, clip, vae = loader.load_checkpoint(full_ckpt_path)
+        # Pass only the relative path to the loader (ComfyUI expects relative to any registered checkpoint dir)
+        model, clip, vae = loader.load_checkpoint(rel_path)
         self.debug_message(f"Checkpoint loaded: model={type(model)}, clip={type(clip)}, vae={type(vae)}", DEBUG_MODE)
-        return model, clip, vae, ckpt_name_full
+        return model, clip, vae, rel_path
 
 NODE_CLASS_MAPPINGS = {
     'OBOROCheckpointLoaderByStringDirty': OBOROCheckpointLoaderByStringDirty,
