@@ -36,6 +36,7 @@ class OBOROCheckpointLoaderByStringDirty:
     RETURN_NAMES = ("model", "clip", "vae", "ckpt_filename")
     FUNCTION = "load_checkpoint"
     CATEGORY = "OBORO"
+    DESCRIPTION = "Loads a Stable Diffusion checkpoint by matching a string input to available checkpoint files. supporting full paths, relative paths, or filenames"
 
     @staticmethod
     def debug_message(msg, DEBUG_MODE):
@@ -133,6 +134,41 @@ class OBOROCheckpointLoaderByStringDirty:
         # Pass only the relative path to the loader (ComfyUI expects relative to any registered checkpoint dir)
         model, clip, vae = loader.load_checkpoint(rel_path)
         self.debug_message(f"Checkpoint loaded: model={type(model)}, clip={type(clip)}, vae={type(vae)}", DEBUG_MODE)
+        return model, clip, vae, rel_path
+
+    def load_checkpoint_safe(self, ckpt_name, output_vae=True, output_clip=True, DEBUG_MODE=False):
+        """
+        Load a checkpoint ONLY if it is a valid safetensors file (safe mode).
+        This avoids loading pickle-based files (ckpt) which could contain malware.
+        """
+        self.debug_message(f"load_checkpoint_safe called with ckpt_name='{ckpt_name}', output_vae={output_vae}, output_clip={output_clip}, DEBUG_MODE={DEBUG_MODE}", DEBUG_MODE)
+        try:
+            import safetensors
+            from safetensors.torch import load_file as safetensors_load_file
+        except ImportError:
+            self.debug_message("[SAFE MODE] safetensors package not installed! Cannot verify file. Aborting.", True)
+            raise ImportError("safetensors package is required for safe loading mode.")
+
+        # Only allow .safetensors extension
+        exts = (".safetensors",)
+        self.debug_message(f"[SAFE MODE] Only accepting extensions: {exts}", DEBUG_MODE)
+        checkpoints_dirs = folder_paths.get_folder_paths("checkpoints")
+        filenames_with_dirs = self._get_all_checkpoints_recursive_all_dirs(checkpoints_dirs, exts=exts)
+        self.debug_message(f"[SAFE MODE] Found {len(filenames_with_dirs)} safetensors files in all search paths (recursive).", DEBUG_MODE)
+        rel_path, base_dir = self.find_matching_filename(ckpt_name, filenames_with_dirs, DEBUG_MODE)
+        full_path = os.path.join(base_dir, rel_path)
+        self.debug_message(f"[SAFE MODE] Resolved checkpoint filename: {rel_path} in {base_dir}", DEBUG_MODE)
+        # Validate safetensors file
+        try:
+            # Will raise if file is corrupt or not a valid safetensors file
+            safetensors_load_file(full_path, device="cpu")
+            self.debug_message(f"[SAFE MODE] File '{full_path}' is a valid safetensors file.", DEBUG_MODE)
+        except Exception as e:
+            self.debug_message(f"[SAFE MODE] File '{full_path}' is NOT a valid safetensors file: {e}", True)
+            raise ValueError(f"File '{full_path}' is not a valid safetensors file: {e}")
+        loader = nodes.CheckpointLoaderSimple()
+        model, clip, vae = loader.load_checkpoint(rel_path)
+        self.debug_message(f"[SAFE MODE] Checkpoint loaded: model={type(model)}, clip={type(clip)}, vae={type(vae)}", DEBUG_MODE)
         return model, clip, vae, rel_path
 
 NODE_CLASS_MAPPINGS = {

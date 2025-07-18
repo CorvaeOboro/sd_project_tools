@@ -45,6 +45,7 @@ class OBOROLoraStringMultiplierNode:
     FUNCTION = "process"
     CATEGORY = "OBORO"
     OUTPUT_NODE = False
+    DESCRIPTION = "Applies a multiplier to LoRA strengths and optionally enforces hard caps on: individual LoRA strengths and the total combined strength of all LoRAs."
 
     def parse_lora_syntax(self, text: str, debug_prints: bool = False) -> Dict[str, float]:
         """

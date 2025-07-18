@@ -25,9 +25,9 @@ class OBOROSaveAnimatedWEBPExtendedFolderPath:
         return {
             "required": {
                 "images": ("IMAGE", ),
-                "filename_prefix": ("STRING", {"default": ""}),
                 "folderpath_input": ("STRING", {"default": "c:/"}),
                 "foldername_prefix": ("STRING", {"default": "gen"}),
+                "filename_prefix": ("STRING", {"default": ""}),
                 "fps": ("FLOAT", {"default": 20.0, "min": 0.01, "max": 1000.0, "step": 0.01}),
                 "lossless": ("BOOLEAN", {"default": True}),
                 "quality": ("INT", {"default": 100, "min": 0, "max": 100}),
@@ -43,6 +43,7 @@ class OBOROSaveAnimatedWEBPExtendedFolderPath:
     FUNCTION = "save_images"
     OUTPUT_NODE = True
     CATEGORY = "OBORO"
+    DESCRIPTION = "Saves an animated WebP file to a specified folder path with optional metadata."
 
     def create_folder_structure(self, base_path, folder_name):
         """Create folder structure and return full path"""

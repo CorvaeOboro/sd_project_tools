@@ -23,6 +23,7 @@ class OBOROTextToTextSafeForFilename:
     RETURN_TYPES = ("STRING",)
     FUNCTION = "process_string"
     CATEGORY = "OBORO"
+    DESCRIPTION = "Converts a text input into a filename-safe variant."
 
     # ---- CONFIGURATIONS ----
     # Characters to replace with underscore

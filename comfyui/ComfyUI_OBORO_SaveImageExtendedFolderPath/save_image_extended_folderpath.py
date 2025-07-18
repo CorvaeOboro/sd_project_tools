@@ -1,3 +1,8 @@
+"""
+SAVE IMAGE EXTENDED FOLDERPATH
+saving images to a specified folder path with optional metadata.
+"""
+
 import os
 import re
 import sys
@@ -13,6 +18,34 @@ import string
 import folder_paths
 
 class OBOROSaveImageExtendedFolderPath:
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            'required': {
+                'images': ('IMAGE', ),
+                'folderpath_input': ('STRING', {'default': 'c:/'}),
+                'foldername_prefix': ('STRING', {'default': 'myPix'}),
+                'filename_prefix': ('STRING', {'default': 'myFile'}),
+                'delimiter': (['underscore','dot', 'comma'], {'default': 'underscore'}),
+                'save_job_data': (['disabled', 'prompt', 'basic, prompt', 'basic, sampler, prompt', 'basic, models, sampler, prompt'],{'default': 'basic, prompt'}),
+                'save_metadata': (['disabled', 'enabled'], {'default': 'enabled'}),
+                'counter_digits': ([2, 3, 4, 5, 6], {'default': 3}),
+                'counter_position': (['first', 'last'], {'default': 'last'}),
+            },
+            "optional": {
+                "positive_text_opt": ("STRING", {"forceInput": True}),
+                "negative_text_opt": ("STRING", {"forceInput": True}),
+            },
+            'hidden': {'prompt': 'PROMPT', 'extra_pnginfo': 'EXTRA_PNGINFO'},
+        }
+
+    RETURN_TYPES = ()
+    FUNCTION = 'save_images'
+    OUTPUT_NODE = True
+    CATEGORY = 'OBORO'
+    DESCRIPTION = "Saves images to a specified folder path with optional metadata."
+
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
         self.type = 'output'
@@ -29,38 +62,6 @@ class OBOROSaveImageExtendedFolderPath:
         sanitized = ''.join(c for c in sanitized if c in string.printable and ord(c) >= 32)
         return sanitized
 
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            'required': {
-                'images': ('IMAGE', ),
-                'filename_prefix': ('STRING', {'default': 'myFile'}),
-                'filename_keys': ('STRING', {'default': 'steps, cfg', 'multiline': False}),
-                'folderpath_input': ('STRING', {'default': 'c:/'}),
-                'foldername_prefix': ('STRING', {'default': 'myPix'}),
-                'foldername_keys': ('STRING', {'default': 'sampler_name, scheduler', 'multiline': False}),
-                'delimiter': (['underscore','dot', 'comma'], {'default': 'underscore'}),
-                'save_job_data': (['disabled', 'prompt', 'basic, prompt', 'basic, sampler, prompt', 'basic, models, sampler, prompt'],{'default': 'basic, prompt'}),
-                'job_data_per_image': (['disabled', 'enabled'],{'default': 'disabled'}),
-                'job_custom_text': ('STRING', {'default': '', 'multiline': False}),
-                'save_metadata': (['disabled', 'enabled'], {'default': 'enabled'}),
-                'counter_digits': ([2, 3, 4, 5, 6], {'default': 3}),
-                'counter_position': (['first', 'last'], {'default': 'last'}),
-                'one_counter_per_folder': (['disabled', 'enabled'], {'default': 'disabled'}),
-                'image_preview': (['disabled', 'enabled'], {'default': 'enabled'}),
-            },
-            "optional": {
-                "positive_text_opt": ("STRING", {"forceInput": True}),
-                "negative_text_opt": ("STRING", {"forceInput": True}),
-            },
-            'hidden': {'prompt': 'PROMPT', 'extra_pnginfo': 'EXTRA_PNGINFO'},
-        }
-
-    RETURN_TYPES = ()
-    FUNCTION = 'save_images'
-    OUTPUT_NODE = True
-    CATEGORY = 'OBORO'
-
     def get_subfolder_path(self, image_path, output_path):
         try:
             image_path = Path(image_path).resolve()
@@ -73,7 +74,7 @@ class OBOROSaveImageExtendedFolderPath:
             return ""
 
     # Get current counter number from file names
-    def get_latest_counter(self, one_counter_per_folder, folder_path, filename_prefix, counter_digits, counter_position='last'):
+    def get_latest_counter(self, folder_path, filename_prefix, counter_digits, counter_position='last'):
         counter = 1
         if not os.path.exists(folder_path):
             print(f"[SaveImageExtendedFolderPath] Folder {folder_path} does not exist, starting counter at 1.")
@@ -83,12 +84,12 @@ class OBOROSaveImageExtendedFolderPath:
             files = [f for f in os.listdir(folder_path) if f.endswith('.png')]
             if files:
                 if counter_position == 'last':
-                    counters = [int(f[-(4 + counter_digits):-4]) if f[-(4 + counter_digits):-4].isdigit() else 0 for f in files if one_counter_per_folder == 'enabled' or f.startswith(filename_prefix)]
+                    counters = [int(f[-(4 + counter_digits):-4]) if f[-(4 + counter_digits):-4].isdigit() else 0 for f in files if f.startswith(filename_prefix)]
                 elif counter_position == 'first':
-                    counters = [int(f[:counter_digits]) if f[:counter_digits].isdigit() else 0 for f in files if one_counter_per_folder == 'enabled' or f[counter_digits +1:].startswith(filename_prefix)]
+                    counters = [int(f[:counter_digits]) if f[:counter_digits].isdigit() else 0 for f in files if f[counter_digits +1:].startswith(filename_prefix)]
                 else:
                     print("[SaveImageExtendedFolderPath] Invalid counter_position. Using 'last' as default.")
-                    counters = [int(f[-(4 + counter_digits):-4]) if f[-(4 + counter_digits):-4].isdigit() else 0 for f in files if one_counter_per_folder == 'enabled' or f.startswith(filename_prefix)]
+                    counters = [int(f[-(4 + counter_digits):-4]) if f[-(4 + counter_digits):-4].isdigit() else 0 for f in files if f.startswith(filename_prefix)]
 
                 if counters:
                     counter = max(counters) + 1
@@ -272,16 +273,10 @@ class OBOROSaveImageExtendedFolderPath:
     def save_images(self,
         counter_digits,
         counter_position,
-        one_counter_per_folder,
         delimiter,
-        filename_keys,
-        foldername_keys,
-        images,
-        image_preview,
         save_job_data,
-        job_data_per_image,
-        job_custom_text,
         save_metadata,
+        images,
         filename_prefix='',
         foldername_prefix='',
         folderpath_input='',
@@ -297,12 +292,10 @@ class OBOROSaveImageExtendedFolderPath:
         img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
         resolution = f'{img.width}x{img.height}'
 
-        filename_keys_to_extract = [item.strip() for item in filename_keys.split(',')]
-        foldername_keys_to_extract = [item.strip() for item in foldername_keys.split(',')]
-        custom_filename = OBOROSaveImageExtendedFolderPath.generate_custom_name(filename_keys_to_extract, filename_prefix, delimiter_char, resolution, prompt)
-        custom_foldername = OBOROSaveImageExtendedFolderPath.generate_custom_name(foldername_keys_to_extract, foldername_prefix, delimiter_char, resolution, prompt)
-        # Sanitize names
-        custom_filename = self.sanitize_name(custom_filename)
+        # Use only prefix for names, no dynamic keys
+        custom_filename = self.sanitize_name(filename_prefix)
+        custom_foldername = self.sanitize_name(foldername_prefix)
+
         custom_foldername = self.sanitize_name(custom_foldername)
         # set folder path to the input
         custom_folderpath = folderpath_input.strip()
@@ -321,7 +314,7 @@ class OBOROSaveImageExtendedFolderPath:
             full_output_folder = os.path.normpath(full_output_folder)
             output_path = str(Path(full_output_folder) / custom_foldername)
             os.makedirs(output_path, exist_ok=True)
-            counter = self.get_latest_counter(one_counter_per_folder, output_path, filename, counter_digits, counter_position)
+            counter = self.get_latest_counter(output_path, filename, counter_digits, counter_position)
 
             results = list()
             for image in images:
@@ -346,23 +339,19 @@ class OBOROSaveImageExtendedFolderPath:
                 img.save(image_path, pnginfo=metadata, compress_level=4)
                 print(f"[SaveImageExtendedFolderPath] Image saved to: {image_path}")
 
-                if save_job_data != 'disabled' and job_data_per_image == 'enabled':
-                    OBOROSaveImageExtendedFolderPath.save_job_to_json(save_job_data, prompt, filename_prefix, positive_text_opt, negative_text_opt, job_custom_text, resolution, output_path, f'{file.strip(".png")}.json')
 
+                # Debug message: print datetime when image is saved
+                print(f'[SaveImageExtendedFolderPath] Image saved at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} - {file}')
                 subfolder = self.get_subfolder_path(image_path, custom_folderpath)
                 results.append({'filename': file, 'subfolder': subfolder, 'type': self.type})
                 counter += 1
 
-            if save_job_data != 'disabled' and job_data_per_image == 'disabled':
-                OBOROSaveImageExtendedFolderPath.save_job_to_json(save_job_data, prompt, filename_prefix, positive_text_opt, negative_text_opt, job_custom_text, resolution, output_path, 'jobs.json')
 
         except OSError as e:
             print(f'[SaveImageExtendedFolderPath] An error occurred while creating the subfolder or saving the image: {e}')
         except Exception as e:
             print(f'[SaveImageExtendedFolderPath] Unexpected error: {e}')
         else:
-            if image_preview == 'disabled':
-                results = list()
             return {'ui': {'images': results}}
 
 NODE_CLASS_MAPPINGS = {

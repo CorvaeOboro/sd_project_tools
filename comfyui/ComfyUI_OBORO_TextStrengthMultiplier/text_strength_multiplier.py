@@ -24,10 +24,6 @@ class OBOROTextStrengthMultiplierNode:
     The node also accepts options to limit each section’s new strength (via an individual cap and optional
     minimum).
     """
-
-    def __init__(self):
-        pass  # No preset defaults; all values are provided via node inputs.
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -50,6 +46,7 @@ class OBOROTextStrengthMultiplierNode:
     FUNCTION = "process"
     CATEGORY = "OBORO"
     OUTPUT_NODE = False
+    DESCRIPTION = "Multiplies LoRA strengths in a text string."
 
     def process(
         self,
@@ -153,11 +150,6 @@ class OBOROTextStrengthMultiplierNode:
         for placeholder, tag in lora_placeholders.items():
             text_final = text_final.replace(placeholder, tag)
 
-        # Debug prints (uncomment if needed)
-        # print("Input Text:", text)
-        # print("After protecting LoRA:", text_protected)
-        # print("After weighted group processing:", text_processed)
-        # print("Final output text:", text_final)
 
         return (text_final,)
 
@@ -166,7 +158,6 @@ NODE_CLASS_MAPPINGS = {
     "OBOROTextStrengthMultiplierNode": OBOROTextStrengthMultiplierNode,
 }
 
-# (Optional) Provide a human-readable display name for your node.
 NODE_DISPLAY_NAME_MAPPINGS = {
     "OBOROTextStrengthMultiplierNode": "Text Strength Multiplier",
 }

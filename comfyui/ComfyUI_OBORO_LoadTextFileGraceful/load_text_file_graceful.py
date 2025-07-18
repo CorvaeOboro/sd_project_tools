@@ -35,6 +35,7 @@ class OBOROLoadTextFileGraceful:
     FUNCTION = "load_file"            # The method in this class that is called
     CATEGORY = "OBORO"                 # Category name for where this node appears
     OUTPUT_NODE = False               # Whether this node can terminate a workflow
+    DESCRIPTION = "Loads a text file from a file path string and outputs the text string , doesnt crash if file not found"
 
     def load_file(self, 
                   file_path="", 

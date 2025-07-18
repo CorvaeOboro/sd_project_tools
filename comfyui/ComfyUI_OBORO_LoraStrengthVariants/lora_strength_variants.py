@@ -40,6 +40,7 @@ class OBOROLoraRandomizerNode:
     FUNCTION = "process"       # The method in this class that is called
     CATEGORY = "OBORO"          # Category name for where this node appears
     OUTPUT_NODE = False         # Whether this node can terminate a workflow
+    DESCRIPTION = "Randomizes LoRA strengths in a text string."
 
     def _debug_print(self, debug_prints, *args, **kwargs):
         if debug_prints:

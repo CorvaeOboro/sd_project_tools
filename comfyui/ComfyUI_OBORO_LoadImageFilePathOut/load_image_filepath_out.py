@@ -34,6 +34,8 @@ class OBOROLoadImageFilePathOut:
     RETURN_TYPES = ("IMAGE", "MASK", "STRING", "STRING")
     RETURN_NAMES = ("image","MASK","file name","folder path")
     FUNCTION = "load_image"
+    DESCRIPTION = "Loads an image from a specified file path string and outputs the image, mask, file name, and folder path."
+    
     def load_image(self, image):
         image_path = OBOROLoadImageFilePathOut._resolve_path(image)
 

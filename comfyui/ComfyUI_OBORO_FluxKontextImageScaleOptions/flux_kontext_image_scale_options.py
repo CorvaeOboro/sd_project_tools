@@ -56,7 +56,7 @@ class OBOROFluxKontextImageScaleOptions:
     FUNCTION = "scale"
 
     CATEGORY = "OBORO"
-    DESCRIPTION = "This node resizes the image to one that is more optimal for flux kontext."
+    DESCRIPTION = " resizes the image to one that is more optimal for flux kontext with crop or stretch options"
 
     def scale(self, image, resize_mode="crop", interpolation="lanczos", crop_anchor="center"):
         width = image.shape[2]

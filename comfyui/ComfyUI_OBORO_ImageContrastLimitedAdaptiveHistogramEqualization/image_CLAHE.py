@@ -43,8 +43,8 @@ class OBORO_CLAHEImageNode:
     FUNCTION = "apply_clahe"
     CATEGORY = "OBORO"
     DESCRIPTION = (
-        "Applies CLAHE (Contrast Limited Adaptive Histogram Equalization) to the input image. "
-        "You can control the clip limit and the tile grid size using optional parameters."
+        "Applies CLAHE Contrast Limited Adaptive Histogram Equalization to the input image. "
+        "useful for locally spatial relative contrast enhancement."
     )
 
     def apply_clahe(self, input_image, clip_limit=2.0, tile_grid_width=8, tile_grid_height=8, **kwargs):
