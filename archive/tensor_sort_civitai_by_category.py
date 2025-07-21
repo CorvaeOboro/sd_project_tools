@@ -1,8 +1,6 @@
-#!/usr/bin/env python3
 """
-Parameter-based File Sorter with Robust Associated File Matching and Debug Logging
-
-This script scans for files (with specific extensions) in a selected folder (non-recursively)
+MODEL SORT BY CATEGORY
+ scans for tensor files (with specific extensions) in a selected folder (non-recursively)
 and checks for an associated info file whose name is based on the primary file's base name.
 It expects the info file to contain JSON data with a "model" dictionary that includes
 two boolean parameters: "nsfw" and "poi".
@@ -12,7 +10,7 @@ For example:
     Associated info file: berry(1).civitai.info
     Associated preview: berry(1).preview.png or berry(1).preview.webm, etc.
 
-Files flagged as:
+Files with boolean parameter flagged as:
     - nsfw: true   -> will be copied to a subfolder named "nsfw"
     - poi: true    -> will be copied to a subfolder named "poi"
 

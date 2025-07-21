@@ -1,7 +1,7 @@
 """
-StableDiffusion Civitai Model Info Get
+Diffusion Tensor Artifact Civitai Info Get
 for each tensor file gets hash then queries using civitai API downloading info and preview image
-opens a GUI or can be run as command line 
+opens a GUI or can be run as command line if args are provided
 CLI example: python sd_civitai_info_get.py --model_dir "models/" --skip_nsfw_preview
 """
 import os
