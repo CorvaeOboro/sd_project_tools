@@ -55,43 +55,18 @@ import subprocess
 from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw, ImageFont
 import traceback
 import argparse
 import math
 
 #//========================================================================================================
-# --- Debug Print Helper ---
-DEBUG = False
+SHOW_TOOL_EMOJIS = True  # Set to False to hide emojis on tool buttons
+DEBUG_MODE = False
+
 def debug_print(*args, **kwargs):
-    if DEBUG:
+    if DEBUG_MODE:
         print(*args, **kwargs)
-
-# --- GLOBAL SIZING CONSTANTS ---
-HEADER_HEIGHT_PX = 12
-HEADER_HEIGHT = 30
-MIN_CARD_HEIGHT = 40
-MAX_CARD_HEIGHT = 120
-MIN_FONT_SIZE = 8
-MAX_FONT_SIZE = 16
-MIN_ICON_SIZE = 8
-MAX_ICON_SIZE = 32
-MIN_BUTTON_WIDTH = 60
-BUTTON_PADDING = 0
-GROUP_PADDING = 0
-CARD_PADDING = 0
-MAX_BUTTON_WIDTH = 200
-
-# --- WINDOW DEFAULTS ---
-DEFAULT_WINDOW_WIDTH = 400
-DEFAULT_WINDOW_HEIGHT = 500
-
-# --- CONFIGURABLE ---
-ICON_FOLDER = 'icons'
-DARK_BG = '#181b22'
-DARK_CARD = '#232635'
-DARK_TEXT = '#e0e6f0'
-DARK_HEADER = '#32364a'
 
 # --- Tool Configuration ---
 TOOL_CONFIG = {
@@ -100,7 +75,6 @@ TOOL_CONFIG = {
         "tools": [
             {"file": "image_review_and_rank_multi_project.py", "label": "Review & Rank Multi Project", "icon": "", "color": "#9f809f", "size_priority": 1},
             {"file": "image_review_and_rank.py", "label": "Review & Rank", "icon": "", "color": "#6b4f6b", "size_priority": 0},
-            {"file": "image_review_and_rank_multi.py", "label": "Review & Rank Multi", "icon": "", "color": "#5a3f5a", "size_priority": 0},
         ]
     },
     "Prompt": { 
@@ -116,13 +90,11 @@ TOOL_CONFIG = {
             {"file": "image_editor_layered.py", "label": "Image Editor Layered", "icon": "", "color": "#6aaa8f", "size_priority": 1},
         ]
     },
-    "Model Info and Sort": { 
+    "Sort": { 
         "color": "#4a7f7f", 
         "tools": [
-            {"file": "tensor_info_civitai_get.py", "label": "Tensor Info Get", "icon": "", "color": "#3f6b6b", "size_priority": 0},
-            {"file": "tensor_sort_civitai_files.py", "label": "Sort Civitai Files", "icon": "", "color": "#5a8a8a", "size_priority": 0},
-            {"file": "tensor_sort_civitai_by_category.py", "label": "Sort by Category", "icon": "", "color": "#6f9f9f", "size_priority": 0},
-            {"file": "tensor_remove_duplicate.py", "label": "Remove Duplicate", "icon": "", "color": "#6f9f9f", "size_priority": 0},
+            {"file": "tensor_tools_all.py", "label": "Tensor Info Sort Clean", "icon": "", "color": "#3f6b6b", "size_priority": 0},
+            {"file": "voice_action_organizer.py", "label": "Voice Action Organize", "icon": "", "color": "#bf8f80", "size_priority": 1}
         ]
     },
     "Video": { 
@@ -138,12 +110,6 @@ TOOL_CONFIG = {
             {"file": "video_editor_word_rating.py", "label": "Video Word Editor", "icon": "", "color": "#4a6a8a", "size_priority": 1},
         ]
     },
-    "Voice Action Organizer": {
-        "color": "#8f6a5f",
-        "tools": [
-            {"file": "voice_action_organizer.py", "label": "Voice Action Organizer", "icon": "", "color": "#bf8f80", "size_priority": 1}
-        ]
-    },
     "SD webui Project ": { 
         "color": "#5f5f8f", 
         "tools": [
@@ -156,6 +122,119 @@ TOOL_CONFIG = {
         ]
     }
 }
+
+# --- GLOBAL SIZING CONSTANTS ---
+HEADER_HEIGHT_PX = 12
+HEADER_HEIGHT = 30
+MIN_CARD_HEIGHT = 70  # Increased for emoji row
+MAX_CARD_HEIGHT = 160  # Increased for emoji row
+MIN_FONT_SIZE = 8
+MAX_FONT_SIZE = 16
+MIN_ICON_SIZE = 8
+MAX_ICON_SIZE = 32
+MIN_BUTTON_WIDTH = 60
+BUTTON_PADDING = 0
+GROUP_PADDING = 0
+CARD_PADDING = 0
+MAX_BUTTON_WIDTH = 200
+
+# --- WINDOW DEFAULTS ---
+DEFAULT_WINDOW_WIDTH = 400
+DEFAULT_WINDOW_HEIGHT = 500
+
+# --- UI ---
+ICON_FOLDER = 'icons'
+DARK_BG = '#181b22'
+DARK_CARD = '#232635'
+DARK_TEXT = '#e0e6f0'
+DARK_HEADER = '#32364a'
+
+# --- Tool Emoji Mapping ---
+TOOL_EMOJIS = {
+    # Image Review
+    'image_review_and_rank_multi_project.py': '🖼️🔍📊',
+    'image_review_and_rank.py': '🖼️🔍⭐',
+    'image_review_and_rank_multi.py': '🖼️🔍📁',
+    # Prompt
+    'gen_project_prompt_entry.py': '📝✨📂',
+    'image_text_prompt_tools.py': '📝🖼️🔤',
+    # Image Tools
+    'image_editor_layered.py': '🖌️🖼️🎨',
+    # Model Info and Sort
+    'tensor_tools_all.py': '🧠ℹ️🗂️',
+    'tensor_info_civitai_get.py': '🧠🔗ℹ️',
+    'tensor_sort_civitai_files.py': '🧠🗂️📦',
+    'tensor_sort_civitai_by_category.py': '🧠🏷️📂',
+    'tensor_remove_duplicate.py': '🧹🧠❌',
+    # Video
+    'video_combine.py': '🎬➕🎬',
+    'video_clip_marker.py': '✂️🎬',
+    'video_place_in_image_composite.py': '🖼️🎬',
+    'video_webp_pingpong.py': '↔️🎬🖼️',
+    'video_review_and_rank_multi_project.py': '🎬🔍📊',
+    'video_psd_to_timelapse_anim.py': '🖼️⏳🎬',
+    'video_add_audio.py': '🎵➕🎬',
+    'video_editor_word_rating.py': '✍️🎬⭐',
+    # Voice
+    'voice_action_organizer.py': '🎤🗂️🧭',
+    # SD webui Project
+    'sd_batch_image_gen_auto1111_webui.py': '🤖🖼️🔁',
+    'projects_from_civitai_info.py': '🧠📄📂',
+    'projects_from_images.py': '🖼️📁📂',
+    'lora_variants.py': '🧬🔀📦',
+    'gen_batch_prompts_in_projects.py': '📝📦🔁',
+    'gen_image_variant_grid_explore.py': '🖼️🗺️🔍',
+}
+# --- Emoji Image Generation ---
+def ensure_emoji_image(emoji, size=48, folder='icons'):
+    """Generate and cache a PNG for the emoji in the icon folder. Returns image path."""
+    # Use unicode codepoint for filename
+    codepoints = '-'.join(f'{ord(c):x}' for c in emoji.strip())
+    filename = f"emoji_{codepoints}_{size}.png"
+    path = os.path.join(folder, filename)
+    if os.path.exists(path):
+        return path
+    # Try to render emoji to image
+    try:
+        # Try to use a color emoji font if available
+        font_paths = [
+            # Windows 10+ emoji font
+            'seguiemj.ttf', 'Segoe UI Emoji.ttf',
+            # MacOS
+            '/System/Library/Fonts/Apple Color Emoji.ttc',
+            # Linux Noto
+            '/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf',
+        ]
+        font = None
+        for fp in font_paths:
+            try:
+                font = ImageFont.truetype(fp, size)
+                break
+            except Exception:
+                continue
+        if font is None:
+            font = ImageFont.load_default()
+        img = Image.new('RGBA', (size, size), (255, 255, 255, 0))
+        draw = ImageDraw.Draw(img)
+        # Calculate bounding box for the emoji glyph
+        try:
+            bbox = draw.textbbox((0, 0), emoji, font=font, embedded_color=True)
+        except TypeError:
+            # For older Pillow
+            bbox = draw.textbbox((0, 0), emoji, font=font)
+        bbox_width = bbox[2] - bbox[0]
+        bbox_height = bbox[3] - bbox[1]
+        # Center the emoji in the square
+        x = (size - bbox_width) // 2 - bbox[0]
+        y = (size - bbox_height) // 2 - bbox[1]
+        draw.text((x, y), emoji, font=font, embedded_color=True)
+        os.makedirs(folder, exist_ok=True)
+        img.save(path)
+        return path
+    except Exception as e:
+        debug_print(f"[emoji] Failed to generate image for '{emoji}': {e}")
+        return None
+
 #//========================================================================================================
 # --- Utility Functions ---
 def get_icon(tool_file, fallback_emoji):
@@ -195,6 +274,7 @@ class ToolCard(tk.Frame):
     MIN_HEIGHT = 50
 
     def __init__(self, parent, launcher_instance, group_name, tool_name, tool_file, icon_text, color, size_priority):
+        debug_print(f"TOOLCARD INIT: {tool_name} ({tool_file})")
         debug_print(f"ToolCard.__init__: Creating card '{tool_name}' ({tool_file}) in group '{group_name}'")
         super().__init__(parent, bg=DARK_CARD, bd=0, relief='flat', highlightthickness=0) # Set bd=0, relief='flat', highlightthickness=0
         self.launcher = launcher_instance
@@ -206,35 +286,139 @@ class ToolCard(tk.Frame):
         self.icon_text = icon_text
 
         self.content = tk.Frame(self, bg=color)
-        self.content.pack(expand=True, fill='both', padx=2, pady=2)
+        self.content.pack(expand=True, fill='both', padx=0, pady=0)
 
-        self.content.grid_rowconfigure(0, weight=55)  
-        self.content.grid_rowconfigure(1, weight=45)  
+        # Bisect: both rows get 50% height, minsize=32 to ensure emoji always visible
+        self.content.grid_rowconfigure(0, weight=1, minsize=32)  # emoji row (top half)
+        self.content.grid_rowconfigure(1, weight=1, minsize=32)  # label row (bottom half)
         self.content.grid_columnconfigure(0, weight=1)
 
+        # --- Emoji Image Row Above Title ---
+        self.emoji_labels = []
+        if SHOW_TOOL_EMOJIS:
+            debug_print(f"EMOJI BLOCK ENTERED for {tool_name}")
+            emoji_str = TOOL_EMOJIS.get(tool_file, '')
+            if emoji_str:
+                self.emoji_frame = tk.Frame(self.content, bg=color)
+                self.emoji_frame.grid(row=0, column=0, sticky='s', padx=0, pady=0)  # anchor bottom of top half
+                self.emoji_images = []
+                self.emoji_squares = []
+                for i in range(3):
+                    square = tk.Frame(self.emoji_frame, bg=color, width=32, height=32)
+                    square.grid(row=0, column=i, sticky='nsew', padx=0, pady=0)
+                    square.grid_propagate(False)  # force size
+                    self.emoji_squares.append(square)
+                    self.emoji_frame.grid_columnconfigure(i, weight=1, uniform="emoji")
+                self.emoji_frame.grid_rowconfigure(0, weight=1)
+                for i, char in enumerate(emoji_str[:3]):
+                    debug_print(f"[emoji] Tool '{tool_file}' emoji {i}: '{char}'")
+                    if char.strip():
+                        img_path = ensure_emoji_image(char, size=32, folder=ICON_FOLDER)
+                        debug_print(f"[emoji] Tool '{tool_file}' emoji {i}: '{char}' image path: {img_path}")
+                        debug_print(f"[emoji] Tool '{tool_file}' emoji {i}: '{char}' os.path.exists: {os.path.exists(img_path) if img_path else 'None'}")
+                        if img_path and os.path.exists(img_path):
+                            try:
+                                emoji_img = Image.open(img_path)
+                                debug_print(f"[emoji] Tool '{tool_file}' emoji {i}: '{char}' PIL image: {emoji_img}")
+                                emoji_imgtk = ImageTk.PhotoImage(emoji_img)
+                                lbl = tk.Label(self.emoji_squares[i], image=emoji_imgtk, bg=color, borderwidth=0, highlightthickness=0)
+                                lbl.place(relx=0.5, rely=0.5, anchor='center')
+                                debug_print(f"[emoji] Tool '{tool_file}' emoji {i}: '{char}' Tk label created and placed")
+                                self.emoji_images.append(emoji_imgtk)
+                                self.emoji_labels.append(lbl)
+                            except Exception as e:
+                                debug_print(f"[emoji] Tool '{tool_file}' emoji {i}: '{char}' FAILED to load image: {e}")
+                                lbl = tk.Label(self.emoji_squares[i], text=char, bg=color, fg=DARK_TEXT, font=("Segoe UI Emoji", 24), borderwidth=0, highlightthickness=0)
+                                lbl.place(relx=0.5, rely=0.5, anchor='center')
+                                self.emoji_labels.append(lbl)
+                        else:
+                            print(f"[emoji] Tool '{tool_file}' emoji {i}: '{char}' image file missing, falling back to text label")
+                            lbl = tk.Label(self.emoji_squares[i], text=char, bg=color, fg=DARK_TEXT, font=("Segoe UI Emoji", 24), borderwidth=0, highlightthickness=0)
+                            lbl.place(relx=0.5, rely=0.5, anchor='center')
+                            self.emoji_labels.append(lbl)
+                    # Bind click/hover/leave to both the square and label
+                    for bind_widget in (self.emoji_squares[i], self.emoji_labels[-1]):
+                        bind_widget.bind('<Button-1>', lambda e, t=self.tool_file: self.launcher.run_tool(t))
+                        bind_widget.bind('<Enter>', lambda e: self._on_enter(color))
+                        bind_widget.bind('<Leave>', lambda e: self._on_leave(color))
+            else:
+                self.emoji_frame = None
+        else:
+            self.emoji_frame = None
+
+        # Icon row (if any), below emoji row
         if isinstance(icon_text, ImageTk.PhotoImage):
             self.icon_label = tk.Label(self.content, image=icon_text, bg=color)
             self.icon_image_tk = icon_text
+            self.icon_label.grid(row=1, column=0, sticky='nsew', padx=2, pady=(2, 0))
         else:
-            self.icon_label = tk.Label(self.content, text=icon_text, bg=color, fg=DARK_TEXT)
-        self.icon_label.grid(row=0, column=0, sticky='nsew', padx=2, pady=(2, 0))
+            self.icon_label = None
 
-        self.text_label = tk.Label(self.content, text=tool_name, bg=color, fg=DARK_TEXT,
-                                  justify='center', anchor='center')
-        self.text_label.grid(row=1, column=0, sticky='nsew')
+        # Tool name label (always present)
+        debug_print(f"LABEL BLOCK ENTERED for {tool_name}")
+        # --- Render outlined label with PIL ---
+        label_img = self._render_outlined_label(tool_name)
+        self.text_label_imgtk = ImageTk.PhotoImage(label_img)
+        self.text_label = tk.Label(self.content, image=self.text_label_imgtk, bg=color, borderwidth=0, highlightthickness=0)
+        self.text_label.grid(row=1, column=0, sticky='n', padx=0, pady=(0, 0))  # anchor top of bottom half
 
-        for widget in (self, self.content, self.icon_label, self.text_label):
-            widget.bind('<Button-1>', lambda e, t=self.tool_file: self.launcher.run_tool(t))
-            widget.bind('<Enter>', lambda e: self._on_enter(color))
-            widget.bind('<Leave>', lambda e: self._on_leave(color))
+        # Configure two-row grid: row 0 (emoji) bottom-aligned, row 1 (label) top-aligned
+        self.content.grid_rowconfigure(0, weight=1, minsize=1)
+        self.content.grid_rowconfigure(1, weight=1, minsize=1)
+        self.content.grid_columnconfigure(0, weight=1)
+
+        # Bind events only to widgets that are not None
+        widgets_to_bind = [self, self.content, self.icon_label, self.text_label]
+        if hasattr(self, 'emoji_frame') and self.emoji_frame is not None:
+            widgets_to_bind.append(self.emoji_frame)
+        for widget in widgets_to_bind:
+            if widget is not None:
+                widget.bind('<Button-1>', lambda e, t=self.tool_file: self.launcher.run_tool(t))
+                widget.bind('<Enter>', lambda e: self._on_enter(color))
+                widget.bind('<Leave>', lambda e: self._on_leave(color))
+        debug_print(f"DONE TOOLCARD: {tool_name}")
+
+    def _render_outlined_label(self, text, font_size=15, outline_width=1):
+        # Use a bold font
+        try:
+            font = ImageFont.truetype("arialbd.ttf", font_size)
+        except Exception:
+            font = ImageFont.truetype("arial.ttf", font_size)
+        # Estimate size
+        dummy_img = Image.new('RGBA', (1, 1))
+        draw = ImageDraw.Draw(dummy_img)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        w, h = bbox[2] - bbox[0] + 2*outline_width + 4, bbox[3] - bbox[1] + 2*outline_width + 4
+        img = Image.new('RGBA', (w, h), (255, 255, 255, 0))
+        draw = ImageDraw.Draw(img)
+        # Draw outline
+        x0, y0 = outline_width+2, outline_width+2
+        for dx in [-outline_width, 0, outline_width]:
+            for dy in [-outline_width, 0, outline_width]:
+                if dx != 0 or dy != 0:
+                    draw.text((x0+dx, y0+dy), text, font=font, fill="white")
+        # Draw main text
+        draw.text((x0, y0), text, font=font, fill="black")
+        return img
 
     def _on_enter(self, color):
         new_color = shade_color(color, 0.85)
-        for widget in (self, self.content, self.icon_label, self.text_label):
+        widgets = [self, self.content, self.icon_label, self.text_label]
+        if hasattr(self, 'emoji_frame') and self.emoji_frame is not None:
+            widgets.append(self.emoji_frame)
+        # Remove duplicates and None
+        seen = set()
+        widgets = [w for w in widgets if w is not None and id(w) not in seen and not seen.add(id(w))]
+        for widget in widgets:
             widget.configure(bg=new_color)
 
     def _on_leave(self, color):
-        for widget in (self, self.content, self.icon_label, self.text_label):
+        widgets = [self, self.content, self.icon_label, self.text_label]
+        if hasattr(self, 'emoji_frame') and self.emoji_frame is not None:
+            widgets.append(self.emoji_frame)
+        seen = set()
+        widgets = [w for w in widgets if w is not None and id(w) not in seen and not seen.add(id(w))]
+        for widget in widgets:
             widget.configure(bg=color)
 
     def resize(self, card_height, card_width):
@@ -270,9 +454,28 @@ class ToolCard(tk.Frame):
         wrap_width = max(50, card_width - 4)
         self.text_label.configure(wraplength=wrap_width)
         
-        if isinstance(self.icon_label.cget('image'), str):
+        if isinstance(self.icon_label, tk.Label) and self.icon_label.cget('image'):
             self.icon_label.configure(font=("Segoe UI Emoji", icon_size))
         self.text_label.configure(font=("Segoe UI", font_size, "bold"))
+
+        # --- Dynamically resize emoji images and labels ---
+        if hasattr(self, 'emoji_labels') and hasattr(self, 'emoji_images') and self.emoji_labels and hasattr(self, 'emoji_squares'):
+            n_emoji = 3
+            emoji_row_height = card_height - 34  # 34 = label minsize
+            emoji_area_width = card_width
+            square_size = min(emoji_row_height, emoji_area_width // n_emoji)
+            square_size = max(24, min(64, square_size))
+            for i, square in enumerate(self.emoji_squares):
+                square.config(width=square_size, height=square_size)
+            for i, lbl in enumerate(self.emoji_labels):
+                if i < len(self.emoji_images):
+                    # Always use the cached 32px image, but center it in the square
+                    emoji_imgtk = self.emoji_images[i]
+                    lbl.configure(image=emoji_imgtk)
+                    lbl.image = emoji_imgtk
+                    lbl.configure(width=32, height=32)
+                else:
+                    lbl.configure(font=("Segoe UI Emoji", 28))
 
 class ToolLauncher(tk.Tk):
     def __init__(self, *args, **kwargs):
@@ -658,8 +861,8 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--debug', action='store_true', help='Enable debug printing')
     args = parser.parse_args()
 
-    DEBUG = args.debug 
-    if DEBUG:
+    DEBUG_MODE = args.debug 
+    if DEBUG_MODE:
         debug_print("--- Debug mode enabled ---")
     app = ToolLauncher()
     app.mainloop()

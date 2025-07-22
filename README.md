@@ -29,21 +29,29 @@ or manually install:
 # Review and Rank
 - [image_review_and_rank_multi_project.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi_project.py) = project image reviewer , quickly rank images into subfolders using left click = 1 and right click = 2 , colorizes by amount 
  <a href="https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi_project.py"> <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main//docs/image_review_and_rank_multi_project.png?raw=true" height="200" /> </a>
-- [image_review_and_rank.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank.py) = simple image viewer from a folderpath , quickly rank images into subfolders using 1,2, or 3 . navigate with arrows . view as tiled texture with T 
-- [image_review_and_rank_multi.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank_multi.py) = multi-folder image reviewer with basic ranking functionality
+- [image_review_and_rank.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/image_review_and_rank.py) = simpler image viewer from a folderpath , quickly rank fullscreen singular images into subfolders using 1,2, or 3 . navigate with arrows . view as tiled texture with T 
 
 # ComfyUI custom nodes
 located in /comfyui/ folder , copy into comfyui custom_nodes  to install
+<img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main//docs/diffusion_project_tools_comfy_workflow.png?raw=true" height="200" />
+
+- [Checkpoint Loader By String Dirty](/comfyui/ComfyUI_OBORO_CheckpointLoaderByStringDirty/checkpoint_loader_by_string_dirty.py) = Loads a Diffusion checkpoint by matching a string input (full path, relative path, or filename) to any registered checkpoint.
+- [Checkpoint Random Selector](/comfyui/ComfyUI_OBORO_RandomCheckpointSelector/random_checkpoint_selector.py) = Randomly selects a checkpoint from a category/folder at a set interval 
+- [Image Contrast Limited Adaptive Histogram Equalization](/comfyui/ComfyUI_OBORO_ImageContrastLimitedAdaptiveHistogramEqualization/image_CLAHE.py) = Image contrast using CLAHE , localized relativistic histogram equalization
+- [Image Multi Scale Retinex Color Restoration](/comfyui/ComfyUI_OBORO_ImageMultiScaleRetinexColorRestoration/image_MSRCR.py) = Image contrast using Multi-Scale Retinex Color Restoration
+- [Load Image FilePath Out](/comfyui/ComfyUI_OBORO_LoadImageFilePathOut/load_image_filepath_out.py) = Load image node, with additional outputs for the filepath and folderpath of the loaded image 
+- [Load Image Random Variants](/comfyui/ComfyUI_OBORO_LoadImageRandomVariants/load_image_random_variant.py) = Loads a image from a filepath with optional random variants , like suffixs or subfolders of multiple renders 
+- [Load Text File Graceful](/comfyui/ComfyUI_OBORO_LoadTextFileGraceful/load_text_file_graceful.py) = Loads text as string , handling missing or invalid files gracefully without crashing
+- [Lora Strength Multiplier](/comfyui/ComfyUI_OBORO_LoraStrengthMultiplier/lora_strength_multiplier.py) = Multiplies and caps LoRA string strengths, with options for total and individual caps.
 - [LoRA Strength Variants](/comfyui/ComfyUI_OBORO_LoraStrengthVariants/lora_strength_variants.py) = Processes LoRA strings with options to randomize Strength or highlight random LoRAs , within a maximum total and individual strength limits
-- [Save Image Extended FolderPath](/comfyui/ComfyUI_OBORO_SaveImageExtendedFolderPath/save_image_extended_folderpath.py) = Save image of external folder path ( requires editing comfy ui folder_paths.py )
-- [String To String Safe For Filename](/comfyui/ComfyUI_OBORO_StringToStringSafeForFilename/string_safe_for_filename.py) = Converts text into filename-safe text by replacing invalid and unfavored characters.
-- [Load Image FilePath Out](/comfyui/ComfyUI_OBORO_LoadImageFilePathOut/load_image_filepath_out.py) = Similar to the load image node, additionaly outputs the filepath and folderpath of the loaded image to strings
-- [Load Text File Graceful](/comfyui/ComfyUI_OBORO_LoadTextFileGraceful/load_text_file_graceful.py) = Loads text as string , handling invalid files gracefully without crashing
+- [Save Image Extended FolderPath](/comfyui/ComfyUI_OBORO_SaveImageExtendedFolderPath/save_image_extended_folderpath.py) = Save image to external folder path ( requires editing comfy ui folder_paths.py )
+- [Text Strength Multiplier](/comfyui/ComfyUI_OBORO_TextStrengthMultiplier/text_strength_multiplier.py) = Multiplies and caps text strengths, with options for total and individual caps.
+- [Text To String Safe For Filename](/comfyui/ComfyUI_OBORO_TextToStringSafeForFilename/text_to_string_safe_for_filename.py) = Converts text into filename-safe text by replacing invalid and unfavored characters and truncating to 150 characters
+- [Text Token Count](/comfyui/ComfyUI_OBORO_TextTokenCount/text_token_count.py) = Counts the number of tokens in a string using CLIP 
 
 # Tensor Info and Sorting
-- [tensor_sort_civitai_files.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/sd_sort_civitai_files.py) = sorts model checkpoints and LoRAs based on the info from corresponding civitai info , models by base model , then by type
-- [tensor_info_civitai_get.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tensor_info_civitai_get.py) = sorts model checkpoints and LoRAs based on the civitai info, models by base model, then by type such as LoRA
-- [tensor_sort_civitai_by_category.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tensor_sort_civitai_by_category.py) = sorts model checkpoints and LoRAs based on the category "nsfw" and "poi" in corresponding civitai info
+- [tensor_tools_all.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tensor_tools_all.py) = gets info from civitai , sorts by info by model type and category , removes duplicates by hash
+-  <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main//docs/tensor_tools_all.png?raw=true" height="200" /> 
 
 # Prompt Entry
 - [gen_project_prompt_entry.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_project_prompt_entry.py) = GUI dashboard for managing multiple item prompts , support for SDXL and SD1.5 positive/negative prompts and FLUX and VIDEO prompts
