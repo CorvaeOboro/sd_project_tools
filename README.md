@@ -80,21 +80,9 @@ located in /comfyui/ folder , copy into comfyui custom_nodes  to install
 - [voice_action_organizer.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/voice_action_organizer.py) = GUI tool for offline speech recognition (using Vosk) to trigger hotkeys or move selected files in Windows Explorer using spoken commands. JSON action management. Requires the [Vosk speech model](https://alphacephei.com/vosk/models)
 - <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/voice_action_organizer.png?raw=true" height="120" />
 
-# Auto1111 WebUI Project Workflow
-earlier versions of this project utilized the auto1111 webui , these are examples of that workflow:
-- requires [auto1111 webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) with --api for image synthesis
-- each "project" is a folder with a source image ( target img2img ) , a .project file ( settings overrides ) , and a 'selected' subfolder containing synthesized images . the python tools included help to generate such a structure and to then batch process multiple projects . 
-- [gen_project_files_from_images.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_project_files_from_images.py)  > [gen_batch_prompts_in_projects.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_batch_prompts_in_projects.py) > [sd_batch_image_gen_auto1111_webui.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/sd_batch_image_gen_auto1111_webui.py)
-- [gen_batch_prompts_in_projects.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_batch_prompts_in_projects.py) = searchs folders recursively for .project files , for each project gathers the metadata image prompts and generates the local and project-wide batch files for image generation ,  prompt variants
-- [gen_image_variant_grid_explore.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_image_variant_grid_explore.py) = a user interface to view generated images with randomized lora strength variants arranged as 3x3 grid , selecting a variant then becomes the center and new variants are generated , in this way navigating spatially toward lora strength settings
-- [projects_from_civitai_info.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/projects_from_civitai_info.py) = creates project structures from Civitai model information
-- [projects_from_images.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/projects_from_images.py) = creates project structures from a folder of images
-- [gen_project_files_from_images.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_project_files_from_images.py) = given a folder of images create named folders and project files for each
-- [sd_batch_image_gen_auto1111_webui.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/sd_batch_image_gen_auto1111_webui.py) = a basic controller of stable diffusion auto1111 webui api , includes specific arguments to cycle through each prompt/negative pair , each target img2img , each checkpoint
-
-example for texture synthesis = a low resolution source images of a stone brick pattern , the 'selected' folder contains multiple images of different stone textures synthesized using stable diffusion containing the prompt/negative in their metadata . [gen_batch_prompts_in_projects.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/gen_batch_prompts_in_projects.py) gathers the prompt/negative pairs from 'selected' and randomly combines into a new list of variants , a local and project-wide .bat is generated that will use the auto1111 webui api via [sd_batch_image_gen_auto1111_webui.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/sd_batch_image_gen_auto1111_webui.py) to run img2img with controlnet for all the prompt variants , across multiple checkpoints , saving the variants into each projects 'output' subfolder . 
-
-this workflow is now recreated in comfyui using the projects [custom nodes](https://github.com/CorvaeOboro/sd_project_tools/blob/main/comfyui/)
+# auto1111 project workflow
+- archived tools built around the previous auto1111 workflow are in [/archive/](https://github.com/CorvaeOboro/sd_project_tools/blob/main/archive/) folder 
+- this workflow is now recreated in comfyui using the projects [custom nodes](https://github.com/CorvaeOboro/sd_project_tools/blob/main/comfyui/)
 
 # LICENSE
 - free to all , [creative commons zero CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) , free to re-distribute , attribution not required

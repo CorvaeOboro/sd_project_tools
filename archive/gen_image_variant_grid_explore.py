@@ -1,3 +1,9 @@
+"""
+GENERATE IMAGE VARIANT GRID EXPLORER 
+a prompt mutator for use with auto1111 stable diffusion webui
+variants of lora strengths are aligned along axis 
+"""
+
 #// GEN IMAGE VAIRANT GRID EXPLORER
 #//=======================================================================================
 import os
