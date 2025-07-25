@@ -60,30 +60,33 @@ If apply_matte is enabled, the resized image is composited onto a black matte ca
 
     def resize(
         self,
-        input_image,
-        widget_target_width,
-        widget_target_height,
-        upscale_method_name,
-        maintain_aspect_ratio,
-        divisor,
-        compose_matte,
-        matte_canvas_width,
-        matte_canvas_height,
-        override_width=None,
-        override_height=None,
-        size_reference_image=None,
-        crop_mode="disabled"
+        image,
+        width,
+        height,
+        upscale_method,
+        keep_proportion,
+        divisible_by,
+        apply_matte,
+        matte_width,
+        matte_height,
+        width_input=None,
+        height_input=None,
+        get_image_size=None,
+        crop="disabled"
     ):
         # Step 1: Retrieve original image dimensions.
         # Expected input format: [batch_size, original_height, original_width, num_channels]
-        batch_size, original_height, original_width, num_channels = input_image.shape
+        batch_size, original_height, original_width, num_channels = image.shape
 
-        # Step 2: Determine target dimensions based on override inputs.
-        if override_width is not None:
-            widget_target_width = override_width
+        # Map widget and override logic
+        widget_target_width = width
+        widget_target_height = height
 
-        if override_height is not None:
-            widget_target_height = override_height
+        # Use override values only if provided, otherwise fallback to widget values
+        if width_input is not None:
+            widget_target_width = width_input
+        if height_input is not None:
+            widget_target_height = height_input
 
         # Step 3: If a size reference image is provided, override dimensions with its size.
         if size_reference_image is not None:

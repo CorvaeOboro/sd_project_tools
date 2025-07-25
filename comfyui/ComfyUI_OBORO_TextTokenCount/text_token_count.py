@@ -7,7 +7,8 @@ class OBOROTextTokenCount:
             "optional": {"clip": ("CLIP", )}
         }
 
-    RETURN_TYPES = ("STRING",)
+    RETURN_TYPES = ("STRING", "LABEL")
+    RETURN_NAMES = ("token_count", "status")
     FUNCTION = "count_tokens"
     CATEGORY = "OBORO"
     DESCRIPTION = "Count the tokens of a string using the provided CLIP model's tokenizer if available, otherwise estimate."
@@ -19,27 +20,27 @@ class OBOROTextTokenCount:
             text (str): The string to count tokens for.
             clip (optional): CLIP model object with a tokenizer.
         Returns:
-            tuple: (token_count_as_string,)
+            tuple: (token_count_as_string, status_label)
         """
+        token_count = None
         if clip is not None:
             try:
                 # Try common CLIP tokenizer patterns
                 if hasattr(clip, 'tokenizer') and hasattr(clip.tokenizer, 'tokenize'):
                     tokens = clip.tokenizer.tokenize(text)
                     token_count = len(tokens[0]) if hasattr(tokens, '__getitem__') else len(tokens)
-                    return (str(token_count),)
                 elif hasattr(clip, 'tokenize'):
                     tokens = clip.tokenize(text)
                     token_count = len(tokens[0]) if hasattr(tokens, '__getitem__') else len(tokens)
-                    return (str(token_count),)
             except Exception as e:
-                # Fallback to estimation if something fails
-                pass
-        # Fallback: Simple LLM-like token estimation
-        word_tokens = len(text.split())
-        char_tokens = max(0, int(len(text) / 4))
-        total_tokens = word_tokens + char_tokens
-        return (str(total_tokens),)
+                token_count = None
+        if token_count is None:
+            # Fallback: Simple LLM-like token estimation
+            word_tokens = len(text.split())
+            char_tokens = max(0, int(len(text) / 4))
+            token_count = word_tokens + char_tokens
+        status = f"Tokens: {token_count}"
+        return str(token_count), status
 
 
 NODE_CLASS_MAPPINGS = {

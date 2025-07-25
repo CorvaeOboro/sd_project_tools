@@ -23,59 +23,75 @@ class OBOROLoadTextFileGraceful:
         return {
             "required": {
                 "file_path": ("STRING", {"default": "", "multiline": False}),
-                "dictionary_name": ("STRING", {"default": "[filename]", "multiline": False}),
             },
-            # If you want to handle optional or hidden inputs, add them here:
-            "optional": {},
+            "optional": {
+                "debug_mode": ("BOOLEAN", {"default": False}),
+            },
             "hidden": {},
         }
 
     # ComfyUI expects certain class variables that define how the node behaves
-    RETURN_TYPES = ("STRING", "DICT")  # We return a text string plus a dictionary
+    RETURN_TYPES = ("STRING", "DICT", "LABEL")  # Add LABEL output for status
+    RETURN_NAMES = ("text", "lines_dict", "status")
     FUNCTION = "load_file"            # The method in this class that is called
     CATEGORY = "OBORO"                 # Category name for where this node appears
     OUTPUT_NODE = False               # Whether this node can terminate a workflow
     DESCRIPTION = "Loads a text file from a file path string and outputs the text string , doesnt crash if file not found"
 
     def load_file(self, 
-                  file_path="", 
-                  dictionary_name="[filename]",
+                  file_path="",
+                  debug_mode=False,
                   *args, 
                   **kwargs):
         """
         Main logic to load a text file:
 
-        1. If dictionary_name is "[filename]", we use the base filename (no extension).
+        1. The dictionary key is always the base filename (no extension).
         2. If file_path does not exist, return an empty string and empty dictionary.
         3. Skip any line that starts with '#'.
-        4. Return a single string (joined with newlines) and a dict {dictionary_key: [list_of_lines]}.
+        4. Return a single string (joined with newlines), a dict {filename: [list_of_lines]}, and a status label.
         """
-
-        # Derive the dictionary key if user left the default "[filename]"
-        if dictionary_name == "[filename]":
-            dictionary_name = os.path.splitext(os.path.basename(file_path))[0]
-
         # Check for file existence
         if not os.path.exists(file_path) or not os.path.isfile(file_path):
             print(f"[LoadTextFileGraceful] Warning: File not found: {file_path}")
-            return "", {dictionary_name: []}
+            status = "File not found"
+            return "", status
 
         # Attempt to read file lines, skipping comments
         lines = []
+        comments = []
         try:
             with open(file_path, 'r', encoding="utf-8") as f:
-                for line in f:
-                    if not line.strip().startswith('#'):
-                        lines.append(line.strip())
+                for idx, line in enumerate(f, 1):
+                    stripped = line.strip()
+                    if stripped.startswith('#'):
+                        comments.append(stripped)
+                        if debug_mode:
+                            print(f"[LoadTextFileGraceful][DEBUG] Skipping comment line {idx}: {stripped}")
+                    else:
+                        lines.append(stripped)
+                        if debug_mode:
+                            print(f"[LoadTextFileGraceful][DEBUG] Loaded line {idx}: {stripped}")
         except Exception as e:
             print(f"[LoadTextFileGraceful] Error reading file {file_path}: {e}")
-            return "", {dictionary_name: []}
+            status = f"Error reading file: {os.path.basename(file_path)}"
+            return "", status
+
+        if debug_mode:
+            print(f"[LoadTextFileGraceful][DEBUG] Finished loading. {len(lines)} content lines, {len(comments)} comment lines.")
+            if comments:
+                print("[LoadTextFileGraceful][DEBUG] Comments found in file:")
+                for comment in comments:
+                    print(f"    {comment}")
 
         # Join non-comment lines into a single string
         text_output = "\n".join(lines)
 
-        # Return the text plus a dictionary keyed by dictionary_name
-        return text_output, {dictionary_name: lines}
+        # Status: show loaded filename
+        status = f"Loaded: {os.path.basename(file_path)}"
+
+        # Return the text,  and status label
+        return text_output, status
 
 
 # ComfyUI needs to know which classes to load when scanning your .py file
