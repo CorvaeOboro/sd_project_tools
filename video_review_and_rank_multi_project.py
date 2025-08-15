@@ -10,6 +10,8 @@ import os
 import sys
 import tempfile
 import shutil
+import threading
+import time
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout,
                              QWidget, QGridLayout, QScrollArea, QPushButton, QHBoxLayout,
                              QLineEdit, QFileDialog, QCheckBox, QFrame)
@@ -30,6 +32,54 @@ except ImportError:
     QT_MULTIMEDIA_AVAILABLE = False
 
 # ===========================================================================================
+def resolve_ffmpeg_path(project_dir: str) -> str:
+    """
+    Attempt to resolve a usable ffmpeg executable path with clear debug output.
+    Priority:
+    1) Env var FFMPEG_PATH if valid
+    2) Common project-local folders (tools/ffmpeg, ffmpeg/bin)
+    3) Common system locations (C:\\ffmpeg\\bin, Program Files)
+    4) Fallback to just 'ffmpeg' (PATH)
+    Returns the path string (may be just 'ffmpeg').
+    """
+    candidates = []
+    env_path = os.environ.get("FFMPEG_PATH")
+    if env_path:
+        candidates.append(env_path)
+
+    if project_dir:
+        candidates.extend([
+            os.path.join(project_dir, "tools", "ffmpeg", "ffmpeg.exe"),
+            os.path.join(project_dir, "tools", "ffmpeg", "bin", "ffmpeg.exe"),
+            os.path.join(project_dir, "ffmpeg", "bin", "ffmpeg.exe"),
+        ])
+
+    candidates.extend([
+        r"C:\\ffmpeg\\bin\\ffmpeg.exe",
+        r"C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
+        r"C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe",
+    ])
+
+    # Deduplicate while preserving order
+    seen = set()
+    uniq = []
+    for c in candidates:
+        if c and c not in seen:
+            uniq.append(c)
+            seen.add(c)
+
+    print("[DEBUG] Attempting to resolve ffmpeg path. Candidates:")
+    for c in uniq:
+        print(f"[DEBUG]  - {c}")
+
+    for c in uniq:
+        if os.path.isfile(c):
+            print(f"[DEBUG] Using ffmpeg at: {c}")
+            return c
+
+    print("[DEBUG] Falling back to 'ffmpeg' from PATH.")
+    return "ffmpeg"
+
 class WorkerSignals(QObject):
     finished = pyqtSignal()
     error = pyqtSignal(tuple)
@@ -39,11 +89,15 @@ class VideoLoader(QRunnable):
     """
     Loads video paths and creates temp proxies and thumbnails for only those needed (visible in UI).
     """
-    def __init__(self, video_paths, temp_dir):
+    # Ensure only one ffmpeg runs at a time across all workers
+    _ffmpeg_lock = threading.Lock()
+
+    def __init__(self, video_paths, temp_dir, ffmpeg_path: str):
         super().__init__()
         self.video_paths = video_paths
         self.temp_dir = temp_dir
         self.signals = WorkerSignals()
+        self.ffmpeg_path = ffmpeg_path or "ffmpeg"
 
     def run(self):
         loaded = []
@@ -65,8 +119,16 @@ class VideoLoader(QRunnable):
             print(f"[DEBUG] Proxy exists, skipping: {temp_path}")
             return temp_path
         # Convert to MPEG-1 + MP2 using ffmpeg for maximum compatibility
+        if os.path.basename(self.ffmpeg_path).lower() == "ffmpeg" and os.path.sep not in self.ffmpeg_path:
+            print("[DEBUG] ffmpeg will be resolved via PATH: 'ffmpeg'")
+        else:
+            print(f"[DEBUG] Using explicit ffmpeg path: {self.ffmpeg_path}")
+        if not (os.path.sep not in self.ffmpeg_path) and not os.path.isfile(self.ffmpeg_path):
+            print(f"[ERROR] ffmpeg path not found: {self.ffmpeg_path}")
+            raise FileNotFoundError(f"ffmpeg not found at {self.ffmpeg_path}")
+
         ffmpeg_cmd = [
-            "ffmpeg", "-y", "-i", video_path,
+            self.ffmpeg_path, "-y", "-i", video_path,
             "-c:v", "mpeg1video", "-c:a", "mp2",
             "-b:v", "2M", "-b:a", "192k",
             "-vf", "scale=960:720:force_original_aspect_ratio=decrease",
@@ -74,11 +136,19 @@ class VideoLoader(QRunnable):
         ]
         print(f"[DEBUG] Running ffmpeg for proxy: {' '.join(ffmpeg_cmd)}")
         try:
-            result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            # Serialize all ffmpeg invocations
+            with VideoLoader._ffmpeg_lock:
+                result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
             print(f"[DEBUG] ffmpeg stdout: {result.stdout.decode('utf-8', errors='ignore')}")
             print(f"[DEBUG] ffmpeg stderr: {result.stderr.decode('utf-8', errors='ignore')}")
+            # Verify output exists and is non-empty
+            if not os.path.exists(temp_path) or os.path.getsize(temp_path) == 0:
+                raise RuntimeError(f"ffmpeg reported success but output not found or empty: {temp_path}")
         except subprocess.CalledProcessError as e:
             print(f"[ERROR] ffmpeg failed for {video_path}: {e.stderr.decode('utf-8', errors='ignore')}")
+            raise
+        except FileNotFoundError as e:
+            print(f"[ERROR] ffmpeg executable not found: {self.ffmpeg_path}. Error: {e}")
             raise
         return temp_path
 
@@ -231,6 +301,23 @@ class MainWindow(QMainWindow):
         self.top_layout.addWidget(self.browse_button)
         self.main_layout.addWidget(self.top_widget)
 
+        # ffmpeg path selection
+        self.ffmpeg_row = QHBoxLayout()
+        self.ffmpeg_line_edit = QLineEdit()
+        self.ffmpeg_line_edit.setPlaceholderText("Path to ffmpeg.exe (optional)")
+        # Pre-resolve default
+        try:
+            default_ffmpeg = resolve_ffmpeg_path(self.project_folder)
+        except Exception:
+            default_ffmpeg = "ffmpeg"
+        self.ffmpeg_line_edit.setText(default_ffmpeg)
+        self.ffmpeg_browse_btn = QPushButton("FFmpeg...")
+        self.ffmpeg_browse_btn.clicked.connect(self.browse_ffmpeg_exe)
+        self.ffmpeg_row.addWidget(QLabel("ffmpeg:"))
+        self.ffmpeg_row.addWidget(self.ffmpeg_line_edit)
+        self.ffmpeg_row.addWidget(self.ffmpeg_browse_btn)
+        self.main_layout.addLayout(self.ffmpeg_row)
+
         # Videos grid
         self.scroll_area = QScrollArea(self)
         self.scroll_area.setWidgetResizable(True)
@@ -266,6 +353,11 @@ class MainWindow(QMainWindow):
             self.project_line_edit.setText(self.project_folder)
             self.load_videos(self.project_folder)
 
+    def browse_ffmpeg_exe(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Select ffmpeg.exe", self.project_folder, "Executable (ffmpeg.exe)")
+        if path:
+            self.ffmpeg_line_edit.setText(path)
+
     def load_videos(self, folder_path):
         self.videos = [os.path.join(folder_path, file) for file in os.listdir(folder_path)
                       if file.lower().endswith('.mp4')]
@@ -277,7 +369,9 @@ class MainWindow(QMainWindow):
 
     def display_videos_async(self):
         visible_paths = self.get_visible_video_paths()
-        loader = VideoLoader(visible_paths, self.temp_dir)
+        ffmpeg_path = (self.ffmpeg_line_edit.text().strip() if hasattr(self, 'ffmpeg_line_edit') else "") or resolve_ffmpeg_path(self.project_folder)
+        print(f"[DEBUG] display_videos_async using ffmpeg: {ffmpeg_path}")
+        loader = VideoLoader(visible_paths, self.temp_dir, ffmpeg_path)
         loader.signals.result.connect(self.on_videos_loaded)
         self.threadpool.start(loader)
 
