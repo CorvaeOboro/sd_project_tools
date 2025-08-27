@@ -5,8 +5,8 @@
 #target photoshop
 app.bringToFront();
 
-// === GLOBAL VARIABLE FOR TARGET HEIGHT ===
-var TARGET_HEIGHT = 1000; // Resize height in pixels
+// === GLOBAL VARIABLE FOR TARGET MAX DIMENSION ===
+var TARGET_MAX_DIM = 1000; // Max allowed width/height in pixels (downscale only)
 
 (function () {
     if (!app.documents.length) {
@@ -20,9 +20,24 @@ var TARGET_HEIGHT = 1000; // Resize height in pixels
     var allLayers = [];
     collectLayers(doc, allLayers);
 
-    // === RESIZE TO TARGET HEIGHT, PROPORTIONAL WIDTH ===
-    if (doc.height != TARGET_HEIGHT) {
-        doc.resizeImage(null, UnitValue(TARGET_HEIGHT, "px"), null, ResampleMethod.BICUBIC);
+    // === RESIZE: ONLY DOWNSCALE IF LONGEST SIDE > TARGET_MAX_DIM ===
+    try {
+        var wPx = doc.width.as('px');
+        var hPx = doc.height.as('px');
+        var maxDim = Math.max(wPx, hPx);
+        if (maxDim > TARGET_MAX_DIM) {
+            if (wPx >= hPx) {
+                var newW = TARGET_MAX_DIM;
+                var newH = Math.round(hPx * (TARGET_MAX_DIM / wPx));
+                doc.resizeImage(UnitValue(newW, 'px'), UnitValue(newH, 'px'), null, ResampleMethod.BICUBIC);
+            } else {
+                var newH2 = TARGET_MAX_DIM;
+                var newW2 = Math.round(wPx * (TARGET_MAX_DIM / hPx));
+                doc.resizeImage(UnitValue(newW2, 'px'), UnitValue(newH2, 'px'), null, ResampleMethod.BICUBIC);
+            }
+        }
+    } catch (e) {
+        // Fail quietly; continue export without resize
     }
 
     var visibleLayers = [];

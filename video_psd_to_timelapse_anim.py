@@ -8,6 +8,10 @@ EXAMPLE: python video_psd_to_timelapse_anim.py --input="D:\Input\" --export_laye
 latest version uses instead the .jsx in  photoshop to export layers for speed 
 previouly using psd-tools for 1000 pixel height psd of 600 layers was 1.5hour , 867 layers was 4hour , each layer iteration makes the process take longer ( starting at 3s per layer to 30s )
 using the .jsx script in photoshop is now 2-3minutes for 600 layers and scales linearly
+
+TODO:
+add more input text fields on the ui to control the delays and speed . the end frame should be a littler longer delay then the start. 
+currently the resolution is fixed to 1000 pixels , when it should only reduce down to 1000 pixels if it is over , for images that are smaller no resizing should occur .
 """
 #//==============================================================================
 import os # filepaths  # filepaths
@@ -24,7 +28,7 @@ import time # sleeping between saving temps  # sleeping between saving temps
 import gc
 import psutil
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, Label, Entry, Button, StringVar
 import sys
 import io
 import numpy as np
@@ -210,7 +214,22 @@ def unique_images_only(images, threshold=1):
             previous_image_data = current_image.copy()
     return unique_images
 
-def make_animation(input_path, original_name, file_extension, loop_backward, reverse_order=False, delete_frames=False, resize=False, max_size=1000):
+def make_animation(
+    input_path,
+    original_name,
+    file_extension,
+    loop_backward,
+    reverse_order=False,
+    delete_frames=False,
+    resize=False,
+    max_size=1000,
+    start_hold=None,
+    end_hold=None,
+    gif_fps=None,
+    webm_fps=None,
+    auto_longer_end=False,
+    end_factor=1.5,
+):
     input_path = Path(input_path)  # Ensure input_path is a Path object
     images = sorted(glob.glob(str(input_path / "psdtemp_*.png")))
     images += sorted(glob.glob(str(input_path / "psdtemp_?????.png")))
@@ -243,13 +262,21 @@ def make_animation(input_path, original_name, file_extension, loop_backward, rev
         print(f"[ERROR] No valid PNG frames found in {input_path}. Aborting animation.")
         return
     output_path = str(input_path / f"{original_name}.{file_extension}")
+    # Resolve timing parameters with fallbacks to module-level defaults
+    resolved_start_hold = FIRST_FRAME_HOLD_TIME if start_hold is None else int(max(0, start_hold))
+    resolved_end_hold = LAST_FRAME_HOLD_TIME if end_hold is None else int(max(0, end_hold))
+    if auto_longer_end and resolved_end_hold <= resolved_start_hold:
+        resolved_end_hold = int(max(resolved_end_hold, round(resolved_start_hold * end_factor)))
+    resolved_gif_fps = GIF_SPEED if gif_fps is None else max(1, int(gif_fps))
+    resolved_webm_fps = WEBM_FRAME_RATE if webm_fps is None else max(1, int(webm_fps))
+
     if file_extension == "webp":
         # Special handling for webp: duplicate first and last frames for hold duration
-        fps = WEBM_FRAME_RATE
+        fps = resolved_webm_fps
         pil_frames = []
         durations = []
         # Hold first frame
-        for _ in range(FIRST_FRAME_HOLD_TIME):
+        for _ in range(resolved_start_hold):
             pil_frames.append(Image.fromarray(frames[0]))
             durations.append(int(250.0/fps))
         # Middle frames
@@ -257,7 +284,7 @@ def make_animation(input_path, original_name, file_extension, loop_backward, rev
             pil_frames.append(Image.fromarray(frame))
             durations.append(int(250.0/fps))
         # Hold last frame
-        for _ in range(LAST_FRAME_HOLD_TIME):
+        for _ in range(resolved_end_hold):
             pil_frames.append(Image.fromarray(frames[-1]))
             durations.append(int(250.0/fps))
         if loop_backward:
@@ -277,12 +304,12 @@ def make_animation(input_path, original_name, file_extension, loop_backward, rev
         )
     else:
         # Build padded frames for all formats (start/end hold)
-        frames_padded = [frames[0]] * FIRST_FRAME_HOLD_TIME
+        frames_padded = [frames[0]] * resolved_start_hold
         frames_padded += frames
-        frames_padded += [frames[-1]] * LAST_FRAME_HOLD_TIME
+        frames_padded += [frames[-1]] * resolved_end_hold
         if loop_backward:
             frames_padded += frames_padded[-2:0:-1]
-        fps = WEBM_FRAME_RATE if file_extension == 'webm' else GIF_SPEED
+        fps = resolved_webm_fps if file_extension == 'webm' else resolved_gif_fps
         clip = ImageSequenceClip(frames_padded, fps=fps)
         bitrate = None
         quality = "high"
@@ -296,7 +323,7 @@ def make_animation(input_path, original_name, file_extension, loop_backward, rev
         codec = "libvpx"  # Google's VP8 codec for .webm output
         crf = 10          # High-quality constant rate factor
         if file_extension == "gif":
-            clip.write_gif(output_path, fps=GIF_SPEED)
+            clip.write_gif(output_path, fps=resolved_gif_fps)
         elif file_extension == "webm":
             clip.write_videofile(
                 output_path,
@@ -509,7 +536,23 @@ def process_psd_files(input_maximum_dimension, input_make_webm, input_make_gif, 
     if log_callback:
         log_callback("All files processed.")
 
-def process_frames_to_video(input_folder, output_name, file_type="webm", loop_backward=False, log_callback=None, reverse_order=False, delete_frames=False, resize=False, max_size=1000):
+def process_frames_to_video(
+    input_folder,
+    output_name,
+    file_type="webm",
+    loop_backward=False,
+    log_callback=None,
+    reverse_order=False,
+    delete_frames=False,
+    resize=False,
+    max_size=1000,
+    start_hold=None,
+    end_hold=None,
+    gif_fps=None,
+    webm_fps=None,
+    auto_longer_end=False,
+    end_factor=1.5,
+):
     """
     Recursively search for exported PNG frames (psdtemp_*.png) in input_folder and subfolders, and process each set into a video/gif/webp.
     The output will be saved in the same folder as the PNG frames, with the given output_name and file_type.
@@ -539,7 +582,22 @@ def process_frames_to_video(input_folder, output_name, file_type="webm", loop_ba
                 log_callback(f"[INFO] Found {len(pngs)} PNG frames in {dirpath}. Creating {output_path.name} (reverse={reverse_order})...")
             else:
                 print(f"[INFO] Found {len(pngs)} PNG frames in {dirpath}. Creating {output_path.name} (reverse={reverse_order})...")
-            make_animation(Path(dirpath), output_path.stem, file_type, loop_backward, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
+            make_animation(
+                Path(dirpath),
+                output_path.stem,
+                file_type,
+                loop_backward,
+                reverse_order=reverse_order,
+                delete_frames=delete_frames,
+                resize=resize,
+                max_size=max_size,
+                start_hold=start_hold,
+                end_hold=end_hold,
+                gif_fps=gif_fps,
+                webm_fps=webm_fps,
+                auto_longer_end=auto_longer_end,
+                end_factor=end_factor,
+            )
             msg = f"[INFO] Animation processing complete: {output_path}"
             if log_callback:
                 log_callback(msg)
@@ -578,7 +636,7 @@ def export_layered_images_only(input_path, max_dimension=1000, log_callback=None
 def run_gui():
     root = tk.Tk()
     root.title("PSD to Timelapse Anim")
-    root.geometry("650x420")
+    root.geometry("760x520")
     # Style
     bg = "#23272e"; fg = "#f0f0f0"; btn_bg = "#2c313c"; btn_fg = fg
     root.configure(bg=bg)
@@ -586,7 +644,7 @@ def run_gui():
     # Folder path
     tk.Label(root, text="PSD Folder or File:", bg=bg, fg=fg).grid(row=0, column=0, padx=5, pady=5, sticky="w")
     path_var = tk.StringVar()
-    tk.Entry(root, textvariable=path_var, width=40, bg=bg, fg=fg, insertbackground=fg).grid(row=0, column=1, padx=5, pady=5)
+    tk.Entry(root, textvariable=path_var, width=50, bg=bg, fg=fg, insertbackground=fg).grid(row=0, column=1, padx=5, pady=5)
     def browse():
         sel = filedialog.askdirectory()
         if sel:
@@ -604,6 +662,14 @@ def run_gui():
     reverse_order_var = tk.BooleanVar(value=True)
     delete_frames_var = tk.BooleanVar(value=False)
     use_photoshop_jsx_var = tk.BooleanVar(value=False)
+
+    # Timing controls
+    start_hold_var = tk.IntVar(value=FIRST_FRAME_HOLD_TIME)
+    end_hold_var = tk.IntVar(value=LAST_FRAME_HOLD_TIME)
+    gif_fps_var = tk.IntVar(value=GIF_SPEED)
+    webm_fps_var = tk.IntVar(value=WEBM_FRAME_RATE)
+    auto_longer_end_var = tk.BooleanVar(value=True)
+    end_factor_var = tk.DoubleVar(value=1.5)
 
     # --- UI Layout ---
     # Row 1: Export Layered | Resize | Max Size label | Max Size input
@@ -625,13 +691,30 @@ def run_gui():
     # Row 4: Use Photoshop JSX export
     tk.Checkbutton(root, text="Use Photoshop JSX Export", variable=use_photoshop_jsx_var, bg=bg, fg=fg, selectcolor=bg).grid(row=4, column=0, sticky="w")
 
+    # Row 5: Timing controls labels/entries
+    tk.Label(root, text="Start Hold (frames):", bg=bg, fg=fg).grid(row=5, column=0, padx=5, pady=5, sticky="e")
+    tk.Entry(root, textvariable=start_hold_var, width=8, bg=bg, fg=fg, insertbackground=fg).grid(row=5, column=1, sticky="w")
+    tk.Label(root, text="End Hold (frames):", bg=bg, fg=fg).grid(row=5, column=2, padx=5, pady=5, sticky="e")
+    tk.Entry(root, textvariable=end_hold_var, width=8, bg=bg, fg=fg, insertbackground=fg).grid(row=5, column=3, sticky="w")
+
+    tk.Label(root, text="GIF FPS:", bg=bg, fg=fg).grid(row=6, column=0, padx=5, pady=5, sticky="e")
+    tk.Entry(root, textvariable=gif_fps_var, width=8, bg=bg, fg=fg, insertbackground=fg).grid(row=6, column=1, sticky="w")
+    tk.Label(root, text="WEBM/WEBP FPS:", bg=bg, fg=fg).grid(row=6, column=2, padx=5, pady=5, sticky="e")
+    tk.Entry(root, textvariable=webm_fps_var, width=8, bg=bg, fg=fg, insertbackground=fg).grid(row=6, column=3, sticky="w")
+
+    tk.Checkbutton(root, text="Auto longer End (>= Start x factor)", variable=auto_longer_end_var, bg=bg, fg=fg, selectcolor=bg).grid(row=7, column=0, columnspan=2, sticky="w")
+    tk.Label(root, text="End Factor:", bg=bg, fg=fg).grid(row=7, column=2, padx=5, pady=5, sticky="e")
+    tk.Entry(root, textvariable=end_factor_var, width=8, bg=bg, fg=fg, insertbackground=fg).grid(row=7, column=3, sticky="w")
+
     # Progress and log
     progress_var = tk.DoubleVar()
     progress_bar = tk.Scale(root, variable=progress_var, from_=0, to=100, orient="horizontal", showvalue=False, length=400, bg=bg)
-    progress_bar.grid(row=5, column=0, columnspan=4, padx=5, pady=10)
-    log_text = tk.Text(root, height=8, bg="#181A1B", fg="#b0b0b0", wrap="word")
-    log_text.grid(row=6, column=0, columnspan=4, sticky="ew", padx=5)
+    progress_bar.grid(row=8, column=0, columnspan=4, padx=5, pady=10)
+    log_text = tk.Text(root, height=10, bg="#181A1B", fg="#b0b0b0", wrap="word")
+    log_text.grid(row=9, column=0, columnspan=4, sticky="nsew", padx=5)
     log_text.config(state="disabled")
+    root.grid_rowconfigure(9, weight=1)
+    root.grid_columnconfigure(1, weight=1)
 
     def append_log(msg):
         log_text.config(state="normal")
@@ -648,7 +731,7 @@ def run_gui():
     def start():
         folder = path_var.get()
         if not folder or not os.path.exists(folder):
-            messagebox.showerror("Error", "Please specify a valid PSD file or folder.")
+            append_log("[ERROR] Please specify a valid PSD file or folder.")
             return
         # Detect if psdtemp_*.png frames exist (support both file and folder input)
         input_path = folder
@@ -665,6 +748,14 @@ def run_gui():
         resize = resize_var.get()
         max_size = max_size_var.get()
         use_photoshop_jsx = use_photoshop_jsx_var.get()
+        # Collect timing values
+        start_hold = start_hold_var.get()
+        end_hold = end_hold_var.get()
+        gif_fps = gif_fps_var.get()
+        webm_fps = webm_fps_var.get()
+        auto_longer_end = auto_longer_end_var.get()
+        end_factor = float(end_factor_var.get()) if end_factor_var.get() else 1.5
+
         # Log all current UI states
         append_log("[UI] Start button pressed with the following settings:")
         append_log(f"[UI]   Path: {folder}")
@@ -679,6 +770,8 @@ def run_gui():
         append_log(f"[UI]   Delete Frames After: {delete_frames}")
         append_log(f"[UI]   Use Photoshop JSX Export: {use_photoshop_jsx}")
         append_log(f"[UI]   Exported frames exist: {frames_exist} (dir checked: {frames_dir})")
+        append_log(f"[UI]   Start Hold: {start_hold} | End Hold: {end_hold} | Auto Longer End: {auto_longer_end} | End Factor: {end_factor}")
+        append_log(f"[UI]   GIF FPS: {gif_fps} | WEBM/WEBP FPS: {webm_fps}")
         # Redirect stdout/stderr to GUI log
         sys.stdout = TkinterConsole(append_log)
         sys.stderr = TkinterConsole(append_log)
@@ -690,11 +783,11 @@ def run_gui():
             if frames_exist and (make_webm or make_gif or make_webp):
                 append_log(f"[INFO] Detected exported frames in {frames_dir}. Skipping Photoshop and processing frames directly.")
                 if make_webm:
-                    process_frames_to_video(frames_dir, "timelapse", file_type="webm", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
+                    process_frames_to_video(frames_dir, "timelapse", file_type="webm", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size, start_hold=start_hold, end_hold=end_hold, gif_fps=gif_fps, webm_fps=webm_fps, auto_longer_end=auto_longer_end, end_factor=end_factor)
                 if make_gif:
-                    process_frames_to_video(frames_dir, "timelapse", file_type="gif", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
+                    process_frames_to_video(frames_dir, "timelapse", file_type="gif", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size, start_hold=start_hold, end_hold=end_hold, gif_fps=gif_fps, webm_fps=webm_fps, auto_longer_end=auto_longer_end, end_factor=end_factor)
                 if make_webp:
-                    process_frames_to_video(frames_dir, "timelapse", file_type="webp", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
+                    process_frames_to_video(frames_dir, "timelapse", file_type="webp", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size, start_hold=start_hold, end_hold=end_hold, gif_fps=gif_fps, webm_fps=webm_fps, auto_longer_end=auto_longer_end, end_factor=end_factor)
             else:
                 append_log("[ERROR] No exported frames found (psdtemp_*.png) in the selected folder. Please export frames first or enable 'Export Layered'.")
         else:
@@ -712,14 +805,14 @@ def run_gui():
             if make_webm or make_gif or make_webp:
                 # After export, process frames
                 if make_webm:
-                    process_frames_to_video(folder, "timelapse", file_type="webm", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
+                    process_frames_to_video(folder, "timelapse", file_type="webm", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size, start_hold=start_hold, end_hold=end_hold, gif_fps=gif_fps, webm_fps=webm_fps, auto_longer_end=auto_longer_end, end_factor=end_factor)
                 if make_gif:
-                    process_frames_to_video(folder, "timelapse", file_type="gif", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
+                    process_frames_to_video(folder, "timelapse", file_type="gif", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size, start_hold=start_hold, end_hold=end_hold, gif_fps=gif_fps, webm_fps=webm_fps, auto_longer_end=auto_longer_end, end_factor=end_factor)
                 if make_webp:
-                    process_frames_to_video(folder, "timelapse", file_type="webp", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size)
+                    process_frames_to_video(folder, "timelapse", file_type="webp", loop_backward=loop_backward, log_callback=append_log, reverse_order=reverse_order, delete_frames=delete_frames, resize=resize, max_size=max_size, start_hold=start_hold, end_hold=end_hold, gif_fps=gif_fps, webm_fps=webm_fps, auto_longer_end=auto_longer_end, end_factor=end_factor)
         for child in root.winfo_children():
             child.configure(state="normal")
-    tk.Button(root, text="Start", command=start, bg=btn_bg, fg=btn_fg).grid(row=7, column=1, pady=10)
+    tk.Button(root, text="Start", command=start, bg=btn_bg, fg=btn_fg).grid(row=10, column=1, pady=10)
     root.mainloop()
 
 def get_dynamic_tqdm_width():

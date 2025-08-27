@@ -1,8 +1,8 @@
 """
 IMAGE METADATA BAD WORD SCANNER
-review image data 
+review image frontmatter data and workflows for badwords 
 Batch and single-image tool for scanning Stable Diffusion image metadata for bad word list matches
-uses bad_words.txt by default
+using local bad_words.txt by default , set and edit your own good and bad words 
 
 User Workflow Overview:
 -----------------------
@@ -30,11 +30,15 @@ User Workflow Overview:
 
 All word list management (loading, saving, updating) is handled by the core logic for consistency, while the UI provides an interactive and immediate way to manage and update these lists and review scan results.
 
+TODO: 
+long good words should protect against small bad word removal 
 """
 #//========================================================================================
 import sys
 import os
 import re
+from enum import Enum
+from typing import Set, Tuple, Optional
 
 from PyQt5.QtWidgets import (
     QApplication, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QLabel, QListWidget, QCheckBox,
@@ -52,6 +56,11 @@ try:
     from sd_parsers import parse_image
 except ImportError:
     parse_image = None
+
+class WordListType(Enum):
+    """Enumeration for different types of word lists."""
+    BAD_WORDS = "bad"
+    GOOD_WORDS = "good"
 
 #//========================================================================================
 
@@ -181,48 +190,158 @@ class BadWordScannerCore:
         # File paths for word lists
         self.badword_file = None
         self.goodword_file = None
-
-    def remove_bad_word(self, word):
+    
+    def _get_word_list_properties(self, word_list_type: WordListType) -> Tuple[Set[str], str, str]:
         """
-        Remove a word from the bad word list file and update the in-memory set.
-        Returns (success: bool, message: str).
+        Get the appropriate word set, file path attribute, and default filename for a word list type.
+        Returns: (word_set, file_path_attr_name, default_filename)
+        """
+        if word_list_type == WordListType.BAD_WORDS:
+            return self.bad_words, 'badword_file', 'bad_words.txt'
+        elif word_list_type == WordListType.GOOD_WORDS:
+            return self.good_words, 'goodword_file', 'good_words.txt'
+        else:
+            raise ValueError(f"Unknown word list type: {word_list_type}")
+    
+    def load_word_list_from_file(self, word_list_type: WordListType, file_path: Optional[str] = None) -> Tuple[Set[str], Optional[str]]:
+        """
+        Load words from a file for the specified word list type.
+        Returns: (set of words, actual file path used)
+        """
+        word_set, file_attr_name, default_filename = self._get_word_list_properties(word_list_type)
+        
+        # Determine search paths
+        paths = []
+        if file_path:
+            paths.append(file_path)
+        else:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            paths.append(os.path.join(script_dir, default_filename))
+            paths.append(os.path.join(os.getcwd(), default_filename))
+        
+        # Try to load from each path
+        for path in paths:
+            if os.path.isfile(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        words = set(line.strip().lower() for line in f if line.strip())
+                    
+                    # Update the appropriate instance variables
+                    if word_list_type == WordListType.BAD_WORDS:
+                        self.bad_words = words
+                        self.badword_file = path
+                    else:
+                        self.good_words = words
+                        self.goodword_file = path
+                    
+                    return words, path
+                except Exception as e:
+                    print(f"[Core] Error loading {word_list_type.value} words from {path}: {e}")
+                    continue
+        
+        # No file found, reset to empty
+        if word_list_type == WordListType.BAD_WORDS:
+            self.bad_words = set()
+            self.badword_file = None
+        else:
+            self.good_words = set()
+            self.goodword_file = None
+        
+        return set(), None
+    
+    def add_word_to_list_file(self, word: str, word_list_type: WordListType) -> Tuple[bool, str]:
+        """
+        Add a word to the specified word list file and update the in-memory set.
+        Returns: (success, message)
         """
         word = word.strip().lower()
-        if not self.badword_file:
-            return False, "No bad word file loaded."
-        lines = []
-        with open(self.badword_file, "r", encoding="utf-8") as f:
-            lines = [l.rstrip() for l in f if l.strip().lower() != word]
-        with open(self.badword_file, "w", encoding="utf-8") as f:
-            f.writelines(l + "\n" for l in lines)
-        self.load_bad_words_from_file(self.badword_file)
-        return True, f"Removed '{word}' from bad word file."
-
-    def move_word_bad_to_good(self, word):
+        if not word:
+            return False, "No word provided."
+        
+        word_set, file_attr_name, default_filename = self._get_word_list_properties(word_list_type)
+        file_path = getattr(self, file_attr_name)
+        
+        # Check if word already exists
+        if word in word_set:
+            return False, f"'{word}' is already in {word_list_type.value} word list."
+        
+        # Ensure file path exists
+        if not file_path:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            file_path = os.path.join(script_dir, default_filename)
+            setattr(self, file_attr_name, file_path)
+            
+            # Create the file if it doesn't exist
+            if not os.path.isfile(file_path):
+                try:
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        pass
+                except Exception as e:
+                    return False, f"Failed to create {word_list_type.value} words file: {e}"
+        
+        # Add word to file
+        try:
+            with open(file_path, "a", encoding="utf-8") as f:
+                f.write(word + "\n")
+            
+            # Reload the word list to update in-memory set
+            self.load_word_list_from_file(word_list_type, file_path)
+            return True, f"Added '{word}' to {word_list_type.value} word list."
+            
+        except Exception as e:
+            return False, f"Failed to add '{word}' to {word_list_type.value} words: {e}"
+    
+    def remove_word_from_list_file(self, word: str, word_list_type: WordListType) -> Tuple[bool, str]:
         """
-        Move a word from the bad word list to the good word list, updating both files.
-        Returns (success: bool, message: str).
+        Remove a word from the specified word list file and update the in-memory set.
+        Returns: (success, message)
         """
-        ok, msg = self.remove_bad_word(word)
-        if not ok:
-            return False, msg
-        ok2 = self.add_good_word(word)
-        if ok2:
-            return True, f"Moved '{word}' from bad to good word list."
+        word = word.strip().lower()
+        if not word:
+            return False, "No word provided."
+        
+        word_set, file_attr_name, default_filename = self._get_word_list_properties(word_list_type)
+        file_path = getattr(self, file_attr_name)
+        
+        if not file_path or not os.path.isfile(file_path):
+            return False, f"No {word_list_type.value} word list file loaded."
+        
+        try:
+            # Read all lines except the word to remove
+            with open(file_path, "r", encoding="utf-8") as f:
+                lines = [line.rstrip() for line in f if line.strip().lower() != word]
+            
+            # Write back the filtered lines
+            with open(file_path, "w", encoding="utf-8") as f:
+                for line in lines:
+                    f.write(line + "\n")
+            
+            # Reload the word list to update in-memory set
+            self.load_word_list_from_file(word_list_type, file_path)
+            return True, f"Removed '{word}' from {word_list_type.value} word list."
+            
+        except Exception as e:
+            return False, f"Failed to remove '{word}' from {word_list_type.value} words: {e}"
+    
+    def move_word_between_lists(self, word: str, from_list: WordListType, to_list: WordListType) -> Tuple[bool, str]:
+        """
+        Move a word from one word list to another, updating both files.
+        Returns: (success, message)
+        """
+        # Remove from source list
+        success_remove, msg_remove = self.remove_word_from_list_file(word, from_list)
+        if not success_remove:
+            return False, msg_remove
+        
+        # Add to destination list
+        success_add, msg_add = self.add_word_to_list_file(word, to_list)
+        if success_add:
+            return True, f"Moved '{word}' from {from_list.value} to {to_list.value} word list."
         else:
-            return False, f"Failed to add '{word}' to good word list."
-
-    def move_word_unknown_to_good(self, word):
-        """
-        Add an unknown word to the good word list.
-        Returns (success: bool, message: str).
-        """
-        ok = self.add_good_word(word)
-        if ok:
-            return True, f"Added unknown word '{word}' to good word list."
-        else:
-            return False, f"Failed to add unknown word '{word}' to good word list."
-
+            # Try to restore to original list if adding failed
+            self.add_word_to_list_file(word, from_list)
+            return False, f"Failed to move '{word}': {msg_add}"
+    
     def scan_image(self, file_path):
         """
         Scan an image file for metadata and find bad, good, and unknown words.
@@ -266,106 +385,6 @@ class BadWordScannerCore:
             msg = f"[Core] Cleaned image: {file_path}, removed {removed} bad words."
             return removed, msg
 
-    def add_good_word(self, word):
-        """
-        Add a good word to the good_words.txt file and update core set. Returns True if added, False if already present.
-        """
-        word = word.strip().lower()
-        good_words, _ = self.load_good_words_from_file(self.goodword_file)
-        if word and word not in good_words:
-            if not self.goodword_file:
-                script_dir = os.path.dirname(os.path.abspath(__file__))
-                self.goodword_file = os.path.join(script_dir, "good_words.txt")
-            with open(self.goodword_file, "a", encoding="utf-8") as f:
-                f.write(word + "\n")
-            self.load_good_words_from_file(self.goodword_file)
-            return True
-        return False
-
-    def add_bad_word(self, word):
-        """
-        Add a word to the bad_words.txt file and update core set. Returns (success: bool, message: str).
-        """
-        word = word.strip().lower()
-        if not word:
-            return False, "No word provided."
-        if word in self.bad_words:
-            return False, f"'{word}' is already in bad word list."
-        if not self.badword_file:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            self.badword_file = os.path.join(script_dir, "bad_words.txt")
-            # Create the file if it does not exist
-            if not os.path.isfile(self.badword_file):
-                with open(self.badword_file, "w", encoding="utf-8") as f:
-                    pass
-        try:
-            with open(self.badword_file, "a", encoding="utf-8") as f:
-                f.write(word + "\n")
-            self.load_bad_words_from_file(self.badword_file)
-            return True, f"Added '{word}' to bad word file."
-        except Exception as e:
-            return False, f"Failed to add '{word}': {e}"
-
-    def load_bad_words_from_file(self, file_path=None):
-        """
-        Load bad words from a file. Returns (set of words, file_path).
-        """
-        paths = []
-        if file_path:
-            paths.append(file_path)
-        else:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            paths.append(os.path.join(script_dir, "bad_words.txt"))
-            paths.append(os.path.join(os.getcwd(), "bad_words.txt"))
-        for path in paths:
-            if os.path.isfile(path):
-                with open(path, "r", encoding="utf-8") as f:
-                    words = set(line.strip().lower() for line in f if line.strip())
-                self.bad_words = words
-                self.badword_file = path
-                return words, path
-        self.bad_words = set()
-        self.badword_file = None
-        return set(), None
-
-    def load_good_words_from_file(self, file_path=None):
-        """
-        Load good words from a file. Returns (set of words, file_path).
-        """
-        paths = []
-        if file_path:
-            paths.append(file_path)
-        else:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            paths.append(os.path.join(script_dir, "good_words.txt"))
-            paths.append(os.path.join(os.getcwd(), "good_words.txt"))
-        for path in paths:
-            if os.path.isfile(path):
-                with open(path, "r", encoding="utf-8") as f:
-                    words = set(line.strip().lower() for line in f if line.strip())
-                self.good_words = words
-                self.goodword_file = path
-                return words, path
-        self.good_words = set()
-        self.goodword_file = None
-        return set(), None
-
-    def save_good_word_to_file(self, word):
-        """
-        Save a good word to the good words file. Returns (success: bool, message: str).
-        """
-        word = word.strip().lower()
-        file_path = self.goodword_file
-        if not file_path:
-            file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "good_words.txt")
-            self.goodword_file = file_path
-        try:
-            with open(file_path, "a", encoding="utf-8") as f:
-                f.write(word + "\n")
-            return True, f"[Core] Added '{word}' to good words and saved to: {os.path.basename(file_path)}"
-        except Exception as e:
-            return False, f"[Core] Failed to save good word to file: {e}"
-
     def scan_json(self, file_path):
         """
         Scan a JSON file for bad words. Returns (badwords, badword_locations).
@@ -374,39 +393,46 @@ class BadWordScannerCore:
             json_data = json.load(f)
         self.last_json_file = file_path
         self.last_json_data = json_data
-        badwords, badword_locations = self.find_badwords_in_json(json_data)
+        badwords, badword_locations = self.find_words_in_json_data(json_data, WordListType.BAD_WORDS, track_locations=True)
         self.last_json_badwords = badwords
         self.last_json_badword_locations = badword_locations
         return badwords, badword_locations
 
-    def find_goodwords_in_json(self, json_data):
+    def find_words_in_json_data(self, json_data, word_list_type: WordListType, track_locations: bool = False):
         """
-        Find good words in JSON data. Returns a list of (key, value, word) tuples.
+        Find words of the specified type in JSON data.
+        
+        Args:
+            json_data: The JSON data to search through
+            word_list_type: Type of words to search for (good or bad)
+            track_locations: Whether to track word locations by key
+            
+        Returns:
+            If track_locations=False: List of (key, value, word) tuples
+            If track_locations=True: Tuple of (word_list, locations_dict)
         """
-        goodwords = []
-        for k, v in json_data.items():
-            if isinstance(v, str):
-                for word in self.good_words:
-                    if word in v.lower():
-                        goodwords.append((k, v, word))
-        return goodwords
-
-    def find_badwords_in_json(self, json_data):
-        """
-        Find bad words in JSON data. Returns (badwords, badword_locations).
-        """
-        badwords = []
-        badword_locations = {}
-        for k, v in json_data.items():
-            if isinstance(v, str):
-                for word in self.bad_words:
-                    if word in v.lower():
-                        badwords.append((k, v, word))
-                        if k not in badword_locations:
-                            badword_locations[k] = []
-                        badword_locations[k].append(word)
-        return badwords, badword_locations
-
+        word_set, _, _ = self._get_word_list_properties(word_list_type)
+        
+        found_words = []
+        word_locations = {} if track_locations else None
+        
+        for key, value in json_data.items():
+            if isinstance(value, str):
+                for word in word_set:
+                    if word in value.lower():
+                        found_words.append((key, value, word))
+                        
+                        # Track locations if requested
+                        if track_locations:
+                            if key not in word_locations:
+                                word_locations[key] = []
+                            word_locations[key].append(word)
+        
+        if track_locations:
+            return found_words, word_locations
+        else:
+            return found_words
+    
     def save_cleaned_json(self, file_path):
         """
         Save the cleaned JSON data to a file. Returns True if successful, False otherwise.
@@ -430,6 +456,118 @@ class BadWordScannerCore:
         self.cleaned_json_data = cleaned_data
         return cleaned_data
 
+    def remove_bad_words_from_image(self, file_path):
+        """
+        Remove bad words from image metadata and save the cleaned image.
+        Returns (success: bool, removed_count: int).
+        """
+        try:
+            # Extract original metadata
+            original_metadata = self.scanner.extract_metadata_text(file_path)
+            if not original_metadata:
+                return True, 0  # No metadata to clean
+            
+            # Count and remove bad words from metadata
+            cleaned_metadata = original_metadata
+            removed_count = 0
+            # Sort bad words by length (longest first) to avoid partial matches interfering with longer words
+            sorted_bad_words = sorted(self.bad_words, key=len, reverse=True)
+            for bad_word in sorted_bad_words:
+                if bad_word in cleaned_metadata.lower():
+                    # Count occurrences (case-insensitive)
+                    import re
+                    matches = re.findall(re.escape(bad_word), cleaned_metadata, re.IGNORECASE)
+                    removed_count += len(matches)
+                    # Remove all occurrences (case-insensitive)
+                    cleaned_metadata = re.sub(re.escape(bad_word), "", cleaned_metadata, flags=re.IGNORECASE)
+            
+            if removed_count == 0:
+                return True, 0  # No bad words found
+            
+            # Clean up extra whitespace
+            cleaned_metadata = re.sub(r'\s+', ' ', cleaned_metadata).strip()
+            
+            # Save the cleaned image with new metadata
+            img = Image.open(file_path)
+            
+            # Create backup filename
+            base_name, ext = os.path.splitext(file_path)
+            backup_path = f"{base_name}_backup{ext}"
+            
+            # Save backup of original
+            img.save(backup_path)
+            print(f"[Core] Created backup: {backup_path}")
+            
+            # For PNG files, update the metadata
+            if ext.lower() == '.png':
+                # Create new PngInfo with cleaned metadata
+                pnginfo = PngInfo()
+                
+                # Process ALL text metadata fields, not just specific keys
+                # This ensures we clean bad words from any text field while preserving image data
+                try:
+                    original_info = img.text or {}
+                    total_field_removals = 0
+                    
+                    for key, value in original_info.items():
+                        # Only process string values (text metadata)
+                        if isinstance(value, str):
+                            cleaned_value = value
+                            field_removals = 0
+                            
+                            # Remove bad words from this field
+                            # Sort bad words by length (longest first) to avoid partial matches interfering with longer words
+                            sorted_bad_words = sorted(self.bad_words, key=len, reverse=True)
+                            for bad_word in sorted_bad_words:
+                                if bad_word in cleaned_value.lower():
+                                    # Create a word boundary pattern that includes underscores and other separators
+                                    # This pattern matches the bad word when it's:
+                                    # - At the start/end of string
+                                    # - Surrounded by spaces, underscores, hyphens, or other non-alphanumeric chars
+                                    word_pattern = r'(?<![a-zA-Z0-9])' + re.escape(bad_word) + r'(?![a-zA-Z0-9])'
+                                    
+                                    # Count occurrences in this field
+                                    matches = re.findall(word_pattern, cleaned_value, re.IGNORECASE)
+                                    field_removals += len(matches)
+                                    # Remove all occurrences (case-insensitive)
+                                    cleaned_value = re.sub(word_pattern, "", cleaned_value, flags=re.IGNORECASE)
+                            
+                            # Clean up extra whitespace in this field
+                            cleaned_value = re.sub(r'\s+', ' ', cleaned_value).strip()
+                            
+                            # Add the cleaned field to the new metadata
+                            pnginfo.add_text(key, cleaned_value)
+                            
+                            if field_removals > 0:
+                                total_field_removals += field_removals
+                                print(f"[Core] Cleaned {field_removals} bad word(s) from metadata field '{key}'")
+                        else:
+                            # Preserve non-string metadata as-is (shouldn't contain bad words anyway)
+                            pnginfo.add_text(key, str(value))
+                    
+                    print(f"[Core] Total bad words removed from all metadata fields: {total_field_removals}")
+                    
+                except Exception as e:
+                    print(f"[Core] Warning: Could not process all metadata fields: {e}")
+                    # Fallback: just add cleaned parameters if available
+                    if 'parameters' in (img.text or {}):
+                        pnginfo.add_text("parameters", cleaned_metadata)
+                    else:
+                        print(f"[Core] No fallback metadata to preserve")
+                
+                # Save the cleaned image
+                img.save(file_path, pnginfo=pnginfo)
+                print(f"[Core] Saved cleaned image with updated metadata")
+            else:
+                # For non-PNG files, we can't easily modify metadata, so just report what would be removed
+                print(f"[Core] Warning: Cannot modify metadata for {ext} files. Backup created but original unchanged.")
+            
+            return True, removed_count
+            
+        except Exception as e:
+            print(f"[Core] Error cleaning image {file_path}: {e}")
+            return False, 0
+
 class BadWordScannerUI(QWidget):
     """
     BadWordScannerUI handles the UI for the BadWordScannerCore.
@@ -451,15 +589,16 @@ class BadWordScannerUI(QWidget):
         print("[DEBUG] UI_init_ui() called.")
 
         # Always load bad words from default locations on startup
-        bad_words, bad_path = self.core.load_bad_words_from_file()
-        print(f"[DEBUG] UI __init__: bad_words={bad_words}, bad_path={bad_path}")
+        bad_words, bad_path = self.core.load_word_list_from_file(WordListType.BAD_WORDS)
+        #print(f"[DEBUG] UI __init__: bad_words={bad_words}, bad_path={bad_path}")
         if bad_words:
-            print(f"[UI] Loaded {len(bad_words)} bad words from: {bad_path}")
+            #print(f"[UI] Loaded {len(bad_words)} bad words from: {bad_path}")
+            print(f"[UI] Loaded {len(bad_words)} bad words ")
         else:
             print(f"[UI] No bad_words.txt found in script or working directory!")
 
         # Always load good words from default locations on startup
-        good_words, good_path = self.core.load_good_words_from_file()
+        good_words, good_path = self.core.load_word_list_from_file(WordListType.GOOD_WORDS)
         self.goodword_file = good_path
         if self.core.good_words:
             print(f"[UI] Loaded {len(self.core.good_words)} good words from: {good_path}")
@@ -631,6 +770,84 @@ class BadWordScannerUI(QWidget):
         print(f"[UI] Scanned image: {file_path}, found {len(found_badwords)} bad, {len(found_goodwords)} good, {len(found_unknownwords)} unknown words.")
         self.UI_update_word_lists(found_badwords, found_goodwords, found_unknownwords)
 
+    def UI_scan_json(self, file_path):
+        """UI method to scan a JSON file and update the interface with results."""
+        print(f"[UI] Scanning JSON file: {file_path}")
+        self.core.last_scanned_file = file_path
+        try:
+            # Load and analyze the JSON file
+            with open(file_path, "r", encoding="utf-8") as f:
+                json_data = json.load(f)
+            
+            # Extract all text from JSON for word analysis
+            all_text_parts = []
+            total_words_in_json = 0
+            
+            def extract_text_from_json(obj, path=""):
+                nonlocal total_words_in_json
+                if isinstance(obj, dict):
+                    for key, value in obj.items():
+                        extract_text_from_json(value, f"{path}.{key}" if path else key)
+                elif isinstance(obj, list):
+                    for i, item in enumerate(obj):
+                        extract_text_from_json(item, f"{path}[{i}]")
+                elif isinstance(obj, str):
+                    all_text_parts.append(obj)
+                    # Count words in this text
+                    import re
+                    words = re.findall(r'\b\w+\b', obj.lower())
+                    total_words_in_json += len(words)
+            
+            extract_text_from_json(json_data)
+            
+            # Combine all text for analysis
+            combined_text = ' '.join(all_text_parts)
+            cleaned_text = combined_text.replace('\n', ' ').replace('_', ' ')
+            
+            # Find all unique words in the JSON
+            import re
+            words_in_json = set(re.findall(r'\b\w+\b', cleaned_text.lower()))
+            
+            # Find bad words
+            found_badwords = set()
+            for word in self.core.bad_words:
+                if word in words_in_json:
+                    found_badwords.add(word)
+            
+            # Find good words
+            found_goodwords = set()
+            for word in self.core.good_words:
+                if word in words_in_json:
+                    found_goodwords.add(word)
+            
+            # Find unknown words (exclude numeric words)
+            found_unknownwords = set(w for w in (words_in_json - self.core.bad_words - self.core.good_words) if not w.isnumeric())
+            
+            # Update UI with comprehensive results
+            unique_words_count = len(words_in_json)
+            self.current_file_label.setText(
+                f"Scanned: {os.path.basename(file_path)} "
+                f"(Total: {total_words_in_json} words, {unique_words_count} unique | "
+                f"Bad: {len(found_badwords)}, Good: {len(found_goodwords)}, Unknown: {len(found_unknownwords)})"
+            )
+            
+            print(f"[UI] JSON scan complete: {file_path}")
+            print(f"[UI] Total words in JSON: {total_words_in_json}, Unique words: {unique_words_count}")
+            print(f"[UI] Found - Bad: {len(found_badwords)}, Good: {len(found_goodwords)}, Unknown: {len(found_unknownwords)}")
+            
+            self.UI_update_word_lists(sorted(found_badwords), sorted(found_goodwords), sorted(found_unknownwords))
+            
+        except Exception as e:
+            print(f"[UI] Error scanning JSON file {file_path}: {e}")
+            self.current_file_label.setText(f"Error scanning: {os.path.basename(file_path)}")
+            self.UI_update_word_lists(set(), set(), set())
+
+    def UI_scan_json_dialog(self):
+        """Open file dialog to select and scan a JSON file."""
+        file_name, _ = QFileDialog.getOpenFileName(self, "Open JSON File", "", "JSON Files (*.json)")
+        if file_name:
+            self.UI_scan_json(file_name)
+
     def UI_batch_clean_folder_dialog(self):
         folder = QFileDialog.getExistingDirectory(self, "Select Folder to Batch Clean")
         if folder:
@@ -668,38 +885,39 @@ class BadWordScannerUI(QWidget):
             print(f"[UI] Cleaning failed for: {file_path}")
 
     def on_click_remove_bad_words_from_last_image(self):
-        if not hasattr(self, 'last_scanned_file') or not self.last_scanned_file:
+        if not hasattr(self.core, 'last_scanned_file') or not self.core.last_scanned_file:
             print("[UI] No file has been scanned yet.")
             return
-        file_path = self.last_scanned_file
+        file_path = self.core.last_scanned_file
         removed, msg = self.core.remove_bad_words_from_file(file_path)
         print(msg)
-        self.UI_update_word_lists()
+        # Re-scan the file to update the UI with the cleaned results
+        self.UI_scan_image(file_path)
 
     def on_click_add_good_word(self):
         word = self.add_goodword_input.text().strip().lower()
         if word:
-            added = self.core.add_good_word(word)
-            if added:
+            success, message = self.core.add_word_to_list_file(word, WordListType.GOOD_WORDS)
+            if success:
                 self.add_goodword_input.clear()
                 self.UI_update_word_lists()
-                print(f"[UI] Added good word: {word}")
+                print(f"[UI] {message}")
             else:
-                print(f"[UI] Word '{word}' is already in good word list.")
+                print(f"[UI] {message}")
         else:
             print("[UI] No word entered to add to good word list.")
 
     def on_click_add_bad_word(self):
         word = self.add_word_input.text().strip().lower()
         if word:
-            added = self.core.add_bad_word(word)
-            if added:
+            success, message = self.core.add_word_to_list_file(word, WordListType.BAD_WORDS)
+            if success:
                 self.add_word_input.clear()
                 self.UI_update_word_lists()
                 self.UI_update_badword_label()
-                print(f"[UI] Added bad word: {word}")
+                print(f"[UI] {message}")
             else:
-                print(f"[UI] Word '{word}' is already in bad word list.")
+                print(f"[UI] {message}")
         else:
             print("[UI] No word entered to add to bad word list.")
 
@@ -722,32 +940,40 @@ class BadWordScannerUI(QWidget):
             self.badword_label.setText(f"No bad word list loaded")
         print(f"[UI] Bad words file label updated: {file_path} ({count} words)")
 
+    def UI_rescan_last_file(self):
+        """Helper method to rescan the last scanned file with the appropriate method based on file type."""
+        if not self.core.last_scanned_file:
+            return
+        
+        file_path = self.core.last_scanned_file
+        if file_path.lower().endswith('.json'):
+            self.UI_scan_json(file_path)
+        else:
+            self.UI_scan_image(file_path)
+
     def UI_on_unknown_word_double_clicked(self, item):
         word = item.text().strip().lower()
-        success, msg = self.core.add_bad_word(word)
-        print(f"[UI] {msg}")
-        # Optionally, rescan last file for immediate feedback
-        if self.core.last_scanned_file:
-            self.UI_scan_image(self.core.last_scanned_file)
+        success, message = self.core.add_word_to_list_file(word, WordListType.BAD_WORDS)
+        print(f"[UI] {message}")
+        # Rescan last file for immediate feedback
+        self.UI_rescan_last_file()
 
     def UI_on_bad_word_double_clicked(self, item):
         # Move word from bad to good, update files, and re-scan current file
         word = item.text().split(' (count:')[0].strip().lower()  # Remove count if present
-        success, msg = self.core.move_word_bad_to_good(word)
-        print(f"[UI] {msg}")
-        # Re-run scan on last scanned file for immediate feedback
-        if self.core.last_scanned_file:
-            self.UI_scan_image(self.core.last_scanned_file)
+        success, message = self.core.move_word_between_lists(word, WordListType.BAD_WORDS, WordListType.GOOD_WORDS)
+        print(f"[UI] {message}")
+        # Rescan last file for immediate feedback
+        self.UI_rescan_last_file()
 
     def UI_on_unknown_word_right_click(self, pos):
         item = self.unknownwords_list.itemAt(pos)
         if item:
             word = item.text().strip().lower()
-            success, msg = self.core.move_word_unknown_to_good(word)
-            print(f"[UI] {msg}")
-            # Re-run scan on last scanned file for immediate feedback
-            if self.core.last_scanned_file:
-                self.UI_scan_image(self.core.last_scanned_file)
+            success, message = self.core.add_word_to_list_file(word, WordListType.GOOD_WORDS)
+            print(f"[UI] {message}")
+            # Rescan last file for immediate feedback
+            self.UI_rescan_last_file()
 
     def UI_save_good_word_to_file(self, word): #
         file_path = getattr(self, 'goodword_file', None)
@@ -800,12 +1026,12 @@ class BadWordScannerUI(QWidget):
             if file_name.lower().endswith((".jpg", ".jpeg", ".bmp", ".png", ".webp")):
                 self.scan_image(file_name)
             elif file_name.lower().endswith(".json"):
-                self.scan_json(file_name)
+                self.UI_scan_json(file_name)
 
     def UI_load_badword_list_dialog(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Open Bad Word List", "", "Text Files (*.txt)")
         if file_name:
-            bad_words, file_path = self.core.CORE_load_bad_words_from_file(file_name)
+            bad_words, file_path = self.core.load_word_list_from_file(WordListType.BAD_WORDS, file_name)
             self.badword_file = file_path
             self.UI_update_word_lists()
             self.UI_update_badword_label()
@@ -814,7 +1040,7 @@ class BadWordScannerUI(QWidget):
     def UI_load_goodword_list_dialog(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Open Good Word List", "", "Text Files (*.txt)")
         if file_name:
-            good_words, file_path = self.core.CORE_load_good_words_from_file(file_name)
+            good_words, file_path = self.core.load_word_list_from_file(WordListType.GOOD_WORDS, file_name)
             self.good_words = good_words
             self.goodword_file = file_path
             self.goodword_label.setText(f"Loaded: {os.path.basename(file_path)} ({len(good_words)} good words)")
