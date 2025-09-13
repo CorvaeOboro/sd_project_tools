@@ -5,21 +5,23 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 from PIL import Image, ImageTk
+import subprocess
+import shutil
 
 # Constants
-CLIP_FRAME_COUNT = 73  # Number of frames for each extracted clip
+CLIP_FRAME_COUNT = 73  # Default number of frames for each extracted clip (used for initial assumptions)
 VIDEO_EXTENSIONS = ('.mp4', '.avi', '.mov', '.mkv')  # Extend as needed
 
 class VideoReviewClipGenerator:
     def __init__(self, root):
         self.root = root
-        self.root.title("Video Review and Clip Generator (Dark Mode)")
+        self.root.title("Video Review - Set Marker - Export Clip Generator ")
 
-        # --- Create and configure a dark theme for ttk widgets ---
+        # --- Create and configure  ttk widgets ---
         style = ttk.Style(self.root)
         style.theme_use('clam')  # or another theme that supports overrides
 
-        # General style for dark background:
+        # General style for :
         style.configure(
             ".",
             background="black",
@@ -114,6 +116,43 @@ class VideoReviewClipGenerator:
                                      command=self.export_clips)
         self.export_btn.grid(row=0, column=5, padx=5, pady=5)
 
+        # Settings frame (clip range, audio export, playback speed)
+        self.settings_frame = ttk.Frame(self.controls_frame)
+        self.settings_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+
+        # Clip pre/post seconds
+        ttk.Label(self.settings_frame, text="Clip pre (s):").grid(row=0, column=0, sticky=tk.E, padx=(0,4))
+        self.pre_seconds_var = tk.DoubleVar(value=0.0)
+        self.pre_entry = ttk.Entry(self.settings_frame, textvariable=self.pre_seconds_var, width=6)
+        self.pre_entry.grid(row=0, column=1, sticky=tk.W, padx=(0,10))
+
+        ttk.Label(self.settings_frame, text="Clip post (s):").grid(row=0, column=2, sticky=tk.E, padx=(0,4))
+        # Default post seconds based on CLIP_FRAME_COUNT and an assumed 30 fps until actual fps is known
+        self.post_seconds_var = tk.DoubleVar(value=max(1.0, CLIP_FRAME_COUNT / 30.0))
+        self.post_entry = ttk.Entry(self.settings_frame, textvariable=self.post_seconds_var, width=6)
+        self.post_entry.grid(row=0, column=3, sticky=tk.W, padx=(0,10))
+
+        # Include audio checkbox
+        self.include_audio_var = tk.BooleanVar(value=False)
+        self.include_audio_chk = ttk.Checkbutton(self.settings_frame, text="Include audio in export", variable=self.include_audio_var)
+        self.include_audio_chk.grid(row=0, column=4, sticky=tk.W, padx=(0,10))
+
+        # Playback speed control
+        ttk.Label(self.settings_frame, text="Playback speed:").grid(row=0, column=5, sticky=tk.E, padx=(0,4))
+        self.playback_speed_var = tk.DoubleVar(value=1.0)
+        self.playback_speed_scale = ttk.Scale(
+            self.settings_frame,
+            from_=0.25,
+            to=3.0,
+            orient="horizontal",
+            command=self.on_speed_change,
+            value=1.0
+        )
+        self.playback_speed_scale.grid(row=0, column=6, sticky=tk.EW)
+        self.settings_frame.columnconfigure(6, weight=1)
+        self.speed_label = ttk.Label(self.settings_frame, text="1.00x")
+        self.speed_label.grid(row=0, column=7, sticky=tk.W, padx=(6,0))
+
         # Status Label
         self.status_label = ttk.Label(self.controls_frame, text="No folder selected.")
         self.status_label.pack(side=tk.LEFT, padx=10)
@@ -172,6 +211,13 @@ class VideoReviewClipGenerator:
         self.current_frame_index = 0
         self.is_playing = False
         self.play_pause_btn.config(text="Play")
+
+        # Adjust default post seconds to match actual fps when first loading a video, if user hasn't changed it
+        try:
+            if hasattr(self, 'post_seconds_var') and self.post_seconds_var.get() == max(1.0, CLIP_FRAME_COUNT / 30.0):
+                self.post_seconds_var.set(max(1.0, CLIP_FRAME_COUNT / max(self.fps, 1e-6)))
+        except Exception:
+            pass
 
         # Load markers
         self.load_markers_from_json(video_path)
@@ -294,7 +340,7 @@ class VideoReviewClipGenerator:
     # Marker Visualization
     # --------------------------------------------------------------------------
     def draw_timeline_markers(self):
-        """Draw markers and a 73-frame highlight on the marker_canvas."""
+        """Draw markers and a highlight region around each marker based on pre/post seconds."""
         self.marker_canvas.delete("all")
         if self.frame_count <= 0:
             return
@@ -302,12 +348,20 @@ class VideoReviewClipGenerator:
         width = self.marker_canvas.winfo_width()
         height = self.marker_canvas.winfo_height()
 
+        # Compute highlight length based on pre/post seconds settings
+        pre_s = max(0.0, float(self.pre_seconds_var.get()) if hasattr(self, 'pre_seconds_var') else 0.0)
+        post_s = max(0.0, float(self.post_seconds_var.get()) if hasattr(self, 'post_seconds_var') else (CLIP_FRAME_COUNT / max(self.fps, 1e-6)))
+        pre_frames = int(round(pre_s * max(self.fps, 1e-6)))
+        post_frames = int(round(post_s * max(self.fps, 1e-6)))
+
         for m in self.markers:
-            # Start line (red vertical line)
-            x_start = int((m / (self.frame_count - 1)) * width) if self.frame_count > 1 else 0
-            
-            # End of the highlight region: marker + 73 frames
-            m_end = min(m + CLIP_FRAME_COUNT, self.frame_count - 1)
+            # Marker x position (red vertical line)
+            x_marker = int((m / (self.frame_count - 1)) * width) if self.frame_count > 1 else 0
+
+            # Highlight region from (marker - pre) to (marker + post)
+            m_start = max(m - pre_frames, 0)
+            m_end = min(m + post_frames, self.frame_count - 1)
+            x_start = int((m_start / (self.frame_count - 1)) * width) if self.frame_count > 1 else 0
             x_end  = int((m_end / (self.frame_count - 1)) * width) if self.frame_count > 1 else 0
 
             # Draw the highlight rectangle first (e.g. orange stipple)
@@ -321,7 +375,7 @@ class VideoReviewClipGenerator:
 
             # Draw the red marker line on top
             self.marker_canvas.create_line(
-                x_start, 0, x_start, height,
+                x_marker, 0, x_marker, height,
                 fill="red", width=2
             )
 
@@ -329,7 +383,7 @@ class VideoReviewClipGenerator:
     # Clip Export
     # --------------------------------------------------------------------------
     def export_clips(self):
-        """Export 73-frame clips for each marker in the current video."""
+        """Export clips for each marker using configured pre/post seconds and optional audio."""
         if not self.video_files:
             return
         video_path = self.video_files[self.current_video_index]
@@ -353,23 +407,40 @@ class VideoReviewClipGenerator:
         width = int(cap_export.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap_export.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
+        # Compute pre/post frames from settings
+        pre_s = max(0.0, float(self.pre_seconds_var.get()))
+        post_s = max(0.0, float(self.post_seconds_var.get()))
+        pre_frames = int(round(pre_s * max(fps, 1e-6)))
+        post_frames = int(round(post_s * max(fps, 1e-6)))
+
         for i, marker_frame in enumerate(self.markers):
             clip_name = f"{base_name}_marker{i}.mp4"
             clip_path = os.path.join(output_folder, clip_name)
 
+            # Determine start and end frames based on pre/post settings
+            start_frame = max(marker_frame - pre_frames, 0)
+            end_frame = min(marker_frame + post_frames, self.frame_count - 1)
+
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             out = cv2.VideoWriter(clip_path, fourcc, fps, (width, height))
 
-            cap_export.set(cv2.CAP_PROP_POS_FRAMES, marker_frame)
+            cap_export.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
-            for _ in range(CLIP_FRAME_COUNT):
+            frames_written = 0
+            total_to_write = (end_frame - start_frame) + 1
+            while frames_written < total_to_write:
                 ret, frame = cap_export.read()
                 if not ret:
                     break
                 out.write(frame)
+                frames_written += 1
 
             out.release()
-            print(f"Exported clip: {clip_path}")
+            print(f"Exported clip (video): {clip_path} | frames {start_frame}-{end_frame}")
+
+            # If requested, attempt to include audio using ffmpeg
+            if self.include_audio_var.get():
+                self._mux_audio_segment(video_path, clip_path, start_frame, end_frame, fps)
 
         cap_export.release()
         print("All clips exported.")
@@ -393,7 +464,88 @@ class VideoReviewClipGenerator:
             if self.frame_count > 0:
                 self.timeline_scale.set(self.current_frame_index)
 
-        self.root.after(10, self.update_video)
+        # Schedule next update based on playback speed and fps
+        self.root.after(self.get_update_delay_ms(), self.update_video)
+
+    def on_speed_change(self, value):
+        """Callback when playback speed slider moves."""
+        try:
+            speed = float(value)
+        except Exception:
+            speed = 1.0
+        speed = max(0.25, min(3.0, speed))
+        self.playback_speed_var.set(speed)
+        self.speed_label.config(text=f"{speed:0.2f}x")
+
+    def get_update_delay_ms(self):
+        """Compute the delay in ms between frames based on fps and playback speed."""
+        fps = self.fps if self.fps and self.fps > 0 else 30.0
+        speed = self.playback_speed_var.get() if hasattr(self, 'playback_speed_var') else 1.0
+        effective_fps = max(1e-3, fps * max(0.25, min(3.0, speed)))
+        delay = int(max(1, round(1000.0 / effective_fps)))
+        return delay
+
+    def _mux_audio_segment(self, source_video, clip_video_path, start_frame, end_frame, fps):
+        """
+        Use ffmpeg (if available) to mux the corresponding audio segment from the source
+        into the clip video. If ffmpeg is not found, print a message and skip.
+        """
+        ffmpeg_path = shutil.which("ffmpeg")
+        if not ffmpeg_path:
+            print("ffmpeg not found in PATH. Skipping audio muxing for:", clip_video_path)
+            return
+
+        start_time = max(0.0, float(start_frame) / max(fps, 1e-6))
+        # end frame is inclusive, add one frame for end timestamp
+        end_time = float(end_frame + 1) / max(fps, 1e-6)
+
+        temp_audio = clip_video_path.replace('.mp4', '.__temp_audio.m4a')
+        temp_muxed = clip_video_path.replace('.mp4', '.__temp_muxed.mp4')
+
+        # Extract audio segment from source
+        extract_cmd = [
+            ffmpeg_path,
+            '-y',
+            '-ss', f"{start_time:.6f}",
+            '-to', f"{end_time:.6f}",
+            '-i', source_video,
+            '-vn',
+            '-acodec', 'copy',
+            temp_audio
+        ]
+
+        # Mux with the video clip
+        mux_cmd = [
+            ffmpeg_path,
+            '-y',
+            '-i', clip_video_path,
+            '-i', temp_audio,
+            '-c:v', 'copy',
+            '-c:a', 'aac',
+            '-shortest',
+            temp_muxed
+        ]
+
+        try:
+            subprocess.run(extract_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            subprocess.run(mux_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            # Replace original clip with muxed version
+            os.replace(temp_muxed, clip_video_path)
+            if os.path.exists(temp_audio):
+                try:
+                    os.remove(temp_audio)
+                except Exception:
+                    pass
+            print(f"Added audio to clip: {clip_video_path}")
+        except subprocess.CalledProcessError as e:
+            print(f"ffmpeg error during audio muxing: {e}")
+            # Cleanup temp files if exist
+            for p in (temp_audio, temp_muxed):
+                if os.path.exists(p):
+                    try:
+                        os.remove(p)
+                    except Exception:
+                        pass
 
     def display_frame(self, frame=None):
         """

@@ -1,3 +1,10 @@
+"""
+VIDEO COMBINER
+using ffmepg quickly combine videos in a timeline 
+- increase speed , fix generated videos unfavorable slow motion
+- first frame clipping range , this is useful for img2vid to remove the bad "warmup" starting to move or shifting lighting
+"""
+
 import os
 import subprocess
 import threading
