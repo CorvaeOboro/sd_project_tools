@@ -4,8 +4,7 @@ import imageio
 
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
-    QLineEdit, QPushButton, QCheckBox, QProgressBar, QFileDialog,
-    QMessageBox
+    QLineEdit, QPushButton, QCheckBox, QProgressBar, QFileDialog
 )
 from PyQt5.QtCore import (
     Qt, QThreadPool, QRunnable, pyqtSignal, QObject, QEvent
@@ -166,6 +165,9 @@ class DragDropWebPConverter(QWidget):
         self.setAcceptDrops(True)
         self.resize(600, 300)
 
+        # Apply dark theme and component styles
+        self.setup_dark_theme()
+
         # For async tasks
         self.threadpool = QThreadPool()
 
@@ -193,6 +195,7 @@ class DragDropWebPConverter(QWidget):
         self.folder_input = QLineEdit()
         self.folder_input.setPlaceholderText("Select or type a folder path...")
         btn_browse = QPushButton("Browse...")
+        btn_browse.setObjectName("browseButton")
         btn_browse.clicked.connect(self.browse_folder)
         folder_hbox.addWidget(self.folder_input)
         folder_hbox.addWidget(btn_browse)
@@ -204,6 +207,7 @@ class DragDropWebPConverter(QWidget):
         # --- Process + progress bar ---
         process_hbox = QHBoxLayout()
         self.process_button = QPushButton("Process Folder")
+        self.process_button.setObjectName("processButton")
         self.process_button.clicked.connect(self.process_folder)
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
@@ -212,12 +216,117 @@ class DragDropWebPConverter(QWidget):
         process_hbox.addWidget(self.process_button)
         process_hbox.addWidget(self.progress_bar)
 
+        # Status label for inline feedback (replaces message boxes)
+        self.status_label = QLabel("")
+        self.status_label.setObjectName("statusLabel")
+        self.status_label.setAlignment(Qt.AlignLeft)
+
         batch_layout.addLayout(folder_hbox)
         batch_layout.addWidget(self.subfolder_checkbox)
         batch_layout.addLayout(process_hbox)
+        batch_layout.addWidget(self.status_label)
 
         layout.addLayout(batch_layout)
         layout.addStretch()
+
+    def setup_dark_theme(self):
+        """Apply a consistent dark mode palette and muted, varied button colors."""
+        # Global dark palette
+        dark_styles = """
+            QWidget {
+                background-color: #121212;
+                color: #E0E0E0;
+                font-size: 12pt;
+            }
+            QLabel#statusLabel {
+                color: #A0A0A0;
+                padding: 6px 4px;
+            }
+            QLabel {
+                background-color: #1E1E1E;
+                border: 1px solid #2A2A2A;
+                border-radius: 6px;
+                padding: 8px;
+            }
+            QLineEdit {
+                background-color: #1A1A1A;
+                color: #E0E0E0;
+                border: 1px solid #2C2C2C;
+                border-radius: 6px;
+                padding: 6px 8px;
+                selection-background-color: #2E3A4A;
+                selection-color: #FFFFFF;
+            }
+            QCheckBox {
+                spacing: 8px;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+            }
+            QCheckBox::indicator:unchecked {
+                border: 1px solid #3A3A3A;
+                background: #1A1A1A;
+                border-radius: 3px;
+            }
+            QCheckBox::indicator:checked {
+                border: 1px solid #3A3A3A;
+                background: #395B64; /* muted teal */
+            }
+            QProgressBar {
+                background-color: #1A1A1A;
+                border: 1px solid #2C2C2C;
+                border-radius: 6px;
+                text-align: center;
+                color: #B0B0B0;
+                height: 22px;
+            }
+            QProgressBar::chunk {
+                background-color: #446688; /* muted steel blue */
+                border-radius: 6px;
+            }
+            QPushButton {
+                background-color: #262626;
+                color: #E0E0E0;
+                border: 1px solid #3A3A3A;
+                padding: 6px 12px;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                filter: brightness(1.1);
+            }
+            QPushButton:pressed {
+                filter: brightness(0.9);
+            }
+            /* Muted, varied button colors */
+            QPushButton#browseButton {
+                background-color: #2D3B45; /* muted blue-gray */
+                border-color: #3E4F59;
+            }
+            QPushButton#browseButton:hover { background-color: #334451; }
+            QPushButton#browseButton:pressed { background-color: #293842; }
+
+            QPushButton#processButton {
+                background-color: #3A4336; /* muted olive */
+                border-color: #4A5546;
+            }
+            QPushButton#processButton:hover { background-color: #414B3D; }
+            QPushButton#processButton:pressed { background-color: #353F33; }
+        """
+        self.setStyleSheet(dark_styles)
+
+    def show_status(self, message: str, level: str = "info"):
+        """Inline status updates with subtle color cues; also prints to console."""
+        colors = {
+            "info": "#A0A0A0",
+            "warn": "#C9A227",
+            "error": "#D96B6B",
+            "ok": "#7CB342",
+        }
+        color = colors.get(level, colors["info"])
+        self.status_label.setText(message)
+        self.status_label.setStyleSheet(f"color: {color};")
+        print(message)
 
     # -------------------
     #   Drag & Drop
@@ -265,7 +374,7 @@ class DragDropWebPConverter(QWidget):
     def process_folder(self):
         folder_path = self.folder_input.text().strip()
         if not folder_path or not os.path.isdir(folder_path):
-            QMessageBox.warning(self, "Invalid Folder", "Please select a valid folder path.")
+            self.show_status("Invalid folder: Please select a valid folder path.", level="warn")
             return
 
         # Gather all .webp files
@@ -273,7 +382,7 @@ class DragDropWebPConverter(QWidget):
         webp_files = [os.path.join(folder_path, f) for f in all_files if f.lower().endswith(".webp")]
 
         if not webp_files:
-            QMessageBox.information(self, "No WebP Files", "No .webp files found in the folder.")
+            self.show_status("No .webp files found in the selected folder.", level="warn")
             return
 
         # Prepare progress bar
@@ -288,7 +397,7 @@ class DragDropWebPConverter(QWidget):
         worker.signals.finished.connect(self.on_worker_finished_batch)
 
         self.threadpool.start(worker)
-        print(f"Started batch processing of {len(webp_files)} files in '{folder_path}'...")
+        self.show_status(f"Started batch processing of {len(webp_files)} files in '{folder_path}'...", level="info")
 
     # -------------------
     #   Worker Slots
@@ -302,17 +411,16 @@ class DragDropWebPConverter(QWidget):
 
     def on_worker_error(self, error_msg):
         """Handle errors from the worker."""
-        print(error_msg)  # Print to console
-        QMessageBox.critical(self, "Error", error_msg)  # Show popup if desired
+        self.show_status(error_msg, level="error")
 
     def on_worker_finished_batch(self):
         """Called when the batch worker finishes all files."""
-        print("Batch processing complete.")
+        self.show_status("Batch processing complete.", level="ok")
         self.progress_bar.setValue(self.progress_bar.maximum())
 
     def on_worker_finished_single(self):
         """Called when the worker finishes single-file or drag-drop job."""
-        print("Single-file conversion(s) complete.")
+        self.show_status("Single-file conversion(s) complete.", level="ok")
         self.progress_bar.setValue(self.progress_bar.maximum())
 
 

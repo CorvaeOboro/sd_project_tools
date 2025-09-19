@@ -15,12 +15,6 @@ CONTROLS
 - consider a cumulative rating for sections with a quick input like up or down arrow , these rough indicators could be useful in finding places to cut based on a threshold . as well could indicate a highlight or very important moment 
 """
 
-
-# ========== VOSK IMPORTS ==========
-
-#//====================================================================================
-
-
 import os
 import sys
 import tempfile
@@ -40,9 +34,9 @@ from PyQt5.QtMultimediaWidgets import QVideoWidget
 from vosk import Model, KaldiRecognizer
 import wave
 import json
-        from PyQt5.QtWidgets import QSplitter
-        from PyQt5.QtWidgets import QFileDialog
-        import datetime, shutil
+from PyQt5.QtWidgets import QSplitter
+from PyQt5.QtWidgets import QFileDialog
+import datetime, shutil
 
 class TimelineWidget(QWidget):
     def __init__(self, parent=None):

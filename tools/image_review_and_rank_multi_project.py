@@ -4,6 +4,11 @@ Browse folders of images, move images into ranked folders with mouse clicks
 Project scale review and ranking for diffusion projects
 Supports animated webp with temp preview 
 Set and Save Project settings
+
+TODO:
+- add a button near the top that will open file explorer to the current folder that is being viewed 
+- if the folder contains images that are vertical aspect ratio , then adjust the spacing . we dont really want to do this dynamiacally , instead we want to decide once on loading the folder , setting the spacing variable then . if a new folder is selected then the calculation occurs again .
+- add a button to view the "01" subfolder , the best of the best in the current folder, like a toggle
 """
 # ===========================================================================================
 import os

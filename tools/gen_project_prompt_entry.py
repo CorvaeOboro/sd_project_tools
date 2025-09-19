@@ -53,12 +53,18 @@ FEATURES TODO :
 - [ ] separate the UI into its own class for modularity 
 - [ ] color code the video prompt entryas muted purple 
 - [ ] add a button to multiply the strength of anythig with strength over 1 , to reduce 
+add more Simplify prompt buttons such as = ( remove loras ) , deduplicate ( comma delimeter based)
 """
+
 
 import os
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
+import re
+from PIL import Image
+import shutil
+import json
 
 class AssetDataEntryUI(tk.Tk):
     def __init__(self, default_folder=""):
@@ -298,7 +304,6 @@ class AssetDataEntryUI(tk.Tk):
         if not entry_name:
             return
         # Only allow safe folder/file names (alphanumeric, dash, underscore)
-        import re
         if not re.match(r'^[\w\- ]+$', entry_name):
             print("Invalid entry name.")
             return
@@ -321,8 +326,6 @@ class AssetDataEntryUI(tk.Tk):
         if not os.path.exists(subfolder_path):
             os.makedirs(subfolder_path)
         # Create stub .png as 1024x1024 black image if not exist
-        from PIL import Image
-        import shutil
         if not os.path.exists(png_path):
             img = Image.new("RGB", (1024, 1024), color="black")
             img.save(png_path, format="PNG")
@@ -371,7 +374,6 @@ class AssetDataEntryUI(tk.Tk):
             # Add more fields as needed
         }
         # Load or create settings file
-        import json
         all_settings = {}
         if os.path.exists(self.settings_file):
             try:
@@ -389,7 +391,6 @@ class AssetDataEntryUI(tk.Tk):
             self.show_status(f"Error saving settings: {str(e)}", error=True)
 
     def load_project_settings(self, project_name):
-        import json
         if not os.path.exists(self.settings_file):
             self.show_status("No saved projects found.", error=True)
             return
@@ -416,7 +417,6 @@ class AssetDataEntryUI(tk.Tk):
         for widget in self.saved_projects_frame.winfo_children():
             widget.destroy()
         # Load project names
-        import json
         if os.path.exists(self.settings_file):
             try:
                 with open(self.settings_file, 'r', encoding='utf-8') as f:
@@ -891,7 +891,6 @@ class AssetDataEntryUI(tk.Tk):
         Also update the UI for the copied-to field if visible."""
         if not self.active_asset or not self.active_md_key:
             return
-        import re
         # Get selected label and key
         selected_label = self.copy_to_var.get()
         key_map = {label: key for label, key in self.copy_to_options}
@@ -900,9 +899,10 @@ class AssetDataEntryUI(tk.Tk):
             return
         # Get content to copy
         content = self.active_text_area.get("1.0", tk.END).rstrip("\n")
-        # Remove <lora:...> tags if copying from flux to sdxl
-        if self.active_md_key == "flux" and target_key in ("sdxl_pos", "sdxl_neg"):
-            content = re.sub(r"<lora:[^>]+>", "", content)
+        # Remove all references to 'lora' when copying, for compatibility
+        # Remove <lora:...> tags
+        content = re.sub(r"<lora:[^>]+>", "", content, flags=re.IGNORECASE)
+        # Do NOT normalize whitespace or strip; preserve all original newlines and spacing
         # Map key to asset field and file path
         field_map = {
             "sdxl_pos": ("prompt_sdxl_content", "prompt_sdxl_path"),
@@ -955,7 +955,6 @@ class AssetDataEntryUI(tk.Tk):
 
     def simplify_active_prompt(self):
         """Remove all (word:number) patterns from the currently selected prompt and save."""
-        import re
         if not self.active_text_area or not self.active_asset or not self.active_md_key:
             return
         content = self.active_text_area.get("1.0", tk.END)

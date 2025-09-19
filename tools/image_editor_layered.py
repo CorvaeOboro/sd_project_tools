@@ -68,6 +68,10 @@ PIPELINE FLOW
 - Project can be saved/loaded (JSON), and final result exported as a flattened image.
 - Alignment snap uses edge detection and template matching to auto-align layers.
 
+TODO:
+- store the hash of the image so we can try to find it later if its been moved or renamed
+- cut image into cropped parts using selection box , selection to mask 
+- lasso tool drag draw to mask 
 """
 
 import sys
