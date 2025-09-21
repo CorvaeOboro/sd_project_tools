@@ -31,8 +31,8 @@ from ctypes.wintypes import HWND, LPARAM
 import tkinter as tk # ui
 from tkinter import ttk  # Import ttk module
 from tkinter import scrolledtext # ui
-from tkinter import filedialog, messagebox # ui
-from tkinter import scrolledtext, filedialog, messagebox, Listbox # ui
+from tkinter import filedialog # ui
+from tkinter import scrolledtext, filedialog, Listbox # ui
 import csv # csv to json
 import json # json stores the actions data
 import Levenshtein  # For calculating string similarity
@@ -44,7 +44,9 @@ import pyttsx3  # For computer-generated voice feedback
 import webbrowser  # For opening URLs
 
 # GLOBAL SETTINGS ===========================================================
-JSON_DATA = 'audio_hotkey_organizer.json'
+# Ensure JSON is stored alongside this script, not relative to current working directory
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+JSON_DATA = os.path.join(SCRIPT_DIR, 'audio_hotkey_organizer.json')
 recognition_timeout = 3  # Default timeout in seconds
 MATCH_THRESHOLD = 0.7  # Minimum similarity score to consider a match
 AUDIO_LEVELS = queue.Queue(maxsize=10)  # Queue to hold recent audio levels
@@ -125,12 +127,17 @@ def csv_to_json_ui():
             new_actions.append(json_action)
             log_csv_to_json_conversion(row, json_action)
 
-    # Ask user to overwrite or append
-    if messagebox.askyesno("Overwrite JSON", "Do you want to overwrite the existing JSON?"):
-        with open(JSON_DATA, 'w') as file:
-            json.dump(new_actions, file, indent=4)
-    else:
-        append_to_json(new_actions, JSON_DATA)
+    # Prefer safe behavior without messagebox: append if file exists, else create new
+    try:
+        if os.path.exists(JSON_DATA):
+            append_to_json(new_actions, JSON_DATA)
+            print(f"Appended {len(new_actions)} actions to existing JSON: {JSON_DATA}")
+        else:
+            with open(JSON_DATA, 'w') as file:
+                json.dump(new_actions, file, indent=4)
+            print(f"Created new JSON with {len(new_actions)} actions: {JSON_DATA}")
+    except Exception as e:
+        print(f"Error writing JSON: {e}")
 
 # Function to log CSV to JSON conversion
 def log_csv_to_json_conversion(csv_row, json_action):
@@ -354,11 +361,26 @@ def execute_action(action):
     except Exception as e:
         print(f"TTS error: {e}")
 
-def load_actions():
-    #load actions from JSON file
+def load_actions(json_path: str = None):
+    # load actions from JSON file; if missing or invalid, return empty list and do not block UI
     global actions
-    with open(JSON_DATA, 'r') as file:
-        actions = json.load(file)
+    path = json_path if json_path is not None else JSON_DATA
+    try:
+        if not os.path.exists(path):
+            actions = []
+            return actions
+        with open(path, 'r') as file:
+            actions = json.load(file)
+            # Ensure it's a list
+            if not isinstance(actions, list):
+                print(f"Invalid JSON structure in {path}. Expected a list; got {type(actions).__name__}. Starting with empty actions.")
+                actions = []
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON {path}: {e}. Starting with empty actions.")
+        actions = []
+    except Exception as e:
+        print(f"Error loading actions from {path}: {e}. Starting with empty actions.")
+        actions = []
     return actions
 
 def match_action(recognized_text, actions):
@@ -743,9 +765,17 @@ class AudioHotkeyOrganizerUI:
                 explorer_folder_val = entries['explorer_folder'].get().strip()
                 if explorer_folder_val:
                     action['explorer_folder'] = explorer_folder_val
-                # Append to JSON file
-                with open(JSON_DATA, 'r') as f:
-                    data = json.load(f)
+                # Append to JSON file (create new file if it does not exist)
+                data = []
+                if os.path.exists(JSON_DATA):
+                    try:
+                        with open(JSON_DATA, 'r') as f:
+                            data = json.load(f)
+                        if not isinstance(data, list):
+                            print(f"Invalid JSON structure in {JSON_DATA}. Overwriting with a new list.")
+                            data = []
+                    except Exception as e:
+                        print(f"Error reading existing JSON {JSON_DATA}: {e}. Overwriting with a new list.")
                 data.append(action)
                 with open(JSON_DATA, 'w') as f:
                     json.dump(data, f, indent=4)
@@ -754,7 +784,11 @@ class AudioHotkeyOrganizerUI:
                 self.log_both(f"Added action '{action['name']}'", f"Added: {action}")
                 win.destroy()
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to add action: {e}")
+                # Avoid blocking dialogs; log to UI
+                if hasattr(self, 'log_both'):
+                    self.log_both("Failed to add action.", f"Error: {e}")
+                else:
+                    print(f"Failed to add action: {e}")
 
         submit_btn = tk.Button(win, text="Add", command=submit, bg=self.DARK_BUTTON_BG, fg=self.DARK_BUTTON_FG)
         submit_btn.grid(row=len(fields), column=0, columnspan=2, pady=8)
@@ -850,9 +884,20 @@ class AudioHotkeyOrganizerUI:
             explorer_folder_val = self.action_editor_widgets['explorer_folder'].get().strip()
             if explorer_folder_val:
                 new_action['explorer_folder'] = explorer_folder_val
-            # Load, update, and save JSON
-            with open(JSON_DATA, 'r') as f:
-                data = json.load(f)
+            # Load, update, and save JSON (handle missing/non-list gracefully)
+            if os.path.exists(JSON_DATA):
+                try:
+                    with open(JSON_DATA, 'r') as f:
+                        data = json.load(f)
+                    if not isinstance(data, list):
+                        print(f"Invalid JSON structure in {JSON_DATA}. Using current in-memory actions list.")
+                        data = list(self.actions)
+                except Exception as e:
+                    print(f"Error reading JSON {JSON_DATA}: {e}. Using current in-memory actions list.")
+                    data = list(self.actions)
+            else:
+                # File doesn't exist yet; create it from current actions
+                data = list(self.actions)
             data[orig_idx] = new_action
             with open(JSON_DATA, 'w') as f:
                 json.dump(data, f, indent=4)
@@ -863,7 +908,11 @@ class AudioHotkeyOrganizerUI:
             self.actions_listbox.selection_set(idx)
             self.log_both(f"Updated action '{new_action['name']}'", f"Updated: {new_action}")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to save action: {e}")
+            # Avoid blocking dialogs; log to UI
+            if hasattr(self, 'log_both'):
+                self.log_both("Failed to save action.", f"Error: {e}")
+            else:
+                print(f"Failed to save action: {e}")
 
 if __name__ == "__main__":
     load_actions()

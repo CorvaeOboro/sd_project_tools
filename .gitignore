@@ -195,3 +195,8 @@ image_psd_reconstruct.bat
 icons/ref/
 icons/_tmp_emoji/
 ref/
+icons/*.psd
+icons/*.py
+example/
+docs/*.psd
+tools/voice_action_organizer.json
