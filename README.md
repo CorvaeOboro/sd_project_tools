@@ -80,9 +80,9 @@ located in /comfyui/ folder , copy into comfyui custom_nodes  to install
 - [video_add_audio.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_add_audio.py) = quick Add audio to a video file using ffmpeg and ffprobe. Supports both GUI and CLI modes. Drag-and-drop interface.
 - [video_place_in_image_composite.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_place_in_image_composite.py) = GUI tool to composite a video into a region of an image using template matching and homography. 
 - [video_webp_pingpong.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_webp_pingpong.py) = creates ping-pong WebP animations from video files
-- [video_to_image_composite.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_to_image_composite.py) = converts video frames to composite images
 - [video_psd_to_timelapse_anim.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_psd_to_timelapse_anim.py) = Converts PSD layers to timelapse animations, UI and CLI, exports to video gif or webp or webm. updated to use [image_psd_to_timelapse_export.jsx](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/image_psd_to_timelapse_export.jsx) a photoshop javascript to do the exporting faster 
- <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/image_psd_to_timelapse_anim.png?raw=true" height="200" />
+<img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/image_psd_to_timelapse_anim.png?raw=true" height="200" />
+
 - [video_editor_word_rating.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_editor_word_rating.py) = GUI tool to rate video frames using words 
 - [video_review_and_rank_multi_project.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_review_and_rank_multi_project.py) =UI for reviewing and ranking video files
  - [VIDEO_cursor_removal.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/VIDEO_cursor_removal.py) = detect and remove mouse cursor overlays from screen recordings
@@ -90,6 +90,8 @@ located in /comfyui/ folder , copy into comfyui custom_nodes  to install
  - [video_audio_batch_processor.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_audio_batch_processor.py) = batch operations for extracting, replacing, or adjusting audio across many videos
  - [video_interlacing_fix.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_interlacing_fix.py) = deinterlace and repair interlaced footage using ffmpeg filters
  - [video_to_gif_cropper.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_to_gif_cropper.py) = crop and convert video clips into GIFs with loop-friendly settings
+  - [video_music_sync.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_music_sync.py) = align audio to music video timing via waveform analysis , useful for syncing stage show to record audio
+  <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/video_music_sync.png?raw=true" height="200" />
 
 # Voice Action Tools
 - [voice_action_organizer.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/voice_action_organizer.py) = GUI tool for offline speech recognition (using Vosk) to trigger hotkeys or move selected files in Windows Explorer using spoken commands. JSON action management. Requires the [Vosk speech model](https://alphacephei.com/vosk/models)
