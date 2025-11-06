@@ -4,14 +4,12 @@ review image frontmatter data and workflows for badwords
 Batch and single-image tool for scanning Stable Diffusion image metadata for bad word list matches
 using local bad_words.txt by default , set and edit your own good and bad words 
 
-User Workflow Overview:
------------------------
+Workflow Overview:
 1. **Load Bad/Good Word Lists:**
    - On startup, the tool loads `bad_words.txt` (and optionally `good_words.txt`) from the script directory or user-specified locations.
    - The user can load or update these lists at any time via the UI buttons "Load Bad Words List" or "Load Good Words List".
 
-2. **Add Words Manually:**
-   - Users may manually add new bad or good words using the input fields and "Add Bad Word"/"Add Good Word" buttons. These are immediately saved to the appropriate file and update the in-memory lists.
+Add Words Manually: = Users may manually add new bad or good words using the input fields and "Add Bad Word"/"Add Good Word" buttons. These are immediately saved to the appropriate file and update the in-memory lists.
 
 3. **Load and Scan Files:**
    - Users load an image or JSON file using "Load File (Image/JSON)". The tool extracts metadata and scans for matches against the loaded bad/good word lists.
@@ -22,16 +20,14 @@ User Workflow Overview:
    - double clicking Unknown words added to Bad words list
    - Right-clicking Unknown words allows adding them to the good words list.
 
-5. **Batch Operations:**
-   - The tool supports batch scanning and cleaning of folders, using the current word lists for all operations.
-
-6. **Saving and Cleaning:**
-   - Cleaned JSON or images can be saved, with the option to overwrite or add a suffix, using the current state of the word lists.
-
-All word list management (loading, saving, updating) is handled by the core logic for consistency, while the UI provides an interactive and immediate way to manage and update these lists and review scan results.
+Batch Operations: =  The tool supports batch scanning and cleaning of folders, using the current word lists for all operations.
+Saving and Cleaning: = Cleaned JSON or images can be saved, with the option to overwrite or add a suffix, using the current state of the word lists.
+All word list management  while the UI provides an interactive and immediate way to manage and update these lists and review scan results.
 
 TODO: 
 long good words should protect against small bad word removal 
+
+VERSION::20251001
 """
 #//========================================================================================
 import sys

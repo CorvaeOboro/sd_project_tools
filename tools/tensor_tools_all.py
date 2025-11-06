@@ -73,6 +73,9 @@ NEURALNETS_EXTENSIONS = ['.safetensors', '.pt', '.ckpt']
 INFO_EXTENSION = '.civitai.info'
 TRANSFER_DELAY = 1
 
+# Hash Storage Constants
+HASH_STORAGE_FILENAME = '00_hashes.json'
+
 # Category Sorting Constants
 PREVIEW_EXTENSIONS = [
     '.preview.png',
@@ -768,73 +771,148 @@ def filter_potential_duplicates(size_dict: Dict[int, List[str]]) -> Tuple[Dict[i
     
     return duplicate_sizes, stats
 
-def load_hash_cache(cache_path: str) -> dict:
-    if os.path.exists(cache_path):
+def load_folder_hashes(folder_path: str) -> dict:
+    """Load hash data from 00_hashes.json in a specific folder."""
+    hash_file = os.path.join(folder_path, HASH_STORAGE_FILENAME)
+    if os.path.exists(hash_file):
         try:
-            with open(cache_path, 'r') as f:
+            with open(hash_file, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"Failed to load hash cache: {e}")
+            print(f"Warning: Failed to load hash file {hash_file}: {e}")
     return {}
 
-def save_hash_cache(cache_path: str, cache: dict):
+def save_folder_hashes(folder_path: str, hashes: dict):
+    """Save hash data to 00_hashes.json in a specific folder."""
+    if not hashes:
+        return
+    
+    hash_file = os.path.join(folder_path, HASH_STORAGE_FILENAME)
     try:
-        with open(cache_path, 'w') as f:
-            json.dump(cache, f)
+        with open(hash_file, 'w', encoding='utf-8') as f:
+            json.dump(hashes, f, indent=2)
+        print(f"Saved {len(hashes)} hash entries to {hash_file}")
     except Exception as e:
-        print(f"Failed to save hash cache: {e}")
+        print(f"Warning: Failed to save hash file {hash_file}: {e}")
 
-def get_file_hash(file_path: str, hash_cache: dict = None) -> str:
+def load_all_folder_hashes(root_path: str) -> Dict[str, dict]:
+    """Load all 00_hashes.json files from root and all subfolders.
+    Returns a dict mapping folder_path -> hash_data.
     """
-    Computes the SHA-256 hash of a file, using a cache if provided.
+    all_hashes = {}
+    for dirpath, dirnames, filenames in os.walk(root_path):
+        if HASH_STORAGE_FILENAME in filenames:
+            folder_hashes = load_folder_hashes(dirpath)
+            if folder_hashes:
+                all_hashes[dirpath] = folder_hashes
+    return all_hashes
+
+def save_all_folder_hashes(folder_hashes: Dict[str, dict]):
+    """Save all modified folder hash data back to their respective 00_hashes.json files."""
+    for folder_path, hashes in folder_hashes.items():
+        if hashes:  # Only save if there's data
+            save_folder_hashes(folder_path, hashes)
+
+def get_file_hash_with_storage(file_path: str, folder_hashes: Dict[str, dict], store_hashes: bool = True) -> str:
+    """
+    Computes the SHA-256 hash of a file, using folder-based hash storage if enabled.
+    
+    Args:
+        file_path: Full path to the file
+        folder_hashes: Dict mapping folder paths to their hash data
+        store_hashes: Whether to store/use cached hashes
+    
+    Returns:
+        SHA-256 hash as hex string
     """
     try:
         stat = os.stat(file_path)
-        cache_key = f"{file_path}|{stat.st_size}|{stat.st_mtime}"
-        if hash_cache is not None:
-            cached = hash_cache.get(cache_key)
-            if cached:
-                return cached
+        file_dir = os.path.dirname(file_path)
+        file_name = os.path.basename(file_path)
+        
+        # Check cache if storage is enabled
+        if store_hashes and file_dir in folder_hashes:
+            cached_data = folder_hashes[file_dir].get(file_name)
+            if cached_data:
+                # Verify file hasn't changed
+                if (cached_data.get('size') == stat.st_size and 
+                    cached_data.get('modified') == stat.st_mtime):
+                    return cached_data.get('hash', '')
+        
+        # Compute hash
         hasher = hashlib.sha256()
         with open(file_path, 'rb') as f:
             for chunk in iter(lambda: f.read(8192), b""):
                 hasher.update(chunk)
         digest = hasher.hexdigest()
-        if hash_cache is not None:
-            hash_cache[cache_key] = digest
+        
+        # Store in cache if enabled
+        if store_hashes:
+            if file_dir not in folder_hashes:
+                folder_hashes[file_dir] = {}
+            folder_hashes[file_dir][file_name] = {
+                'hash': digest,
+                'size': stat.st_size,
+                'modified': stat.st_mtime
+            }
+        
         return digest
     except Exception as e:
         print(f"Error hashing file {file_path}: {e}")
         return ""
 
-def find_duplicate_files(size_dict: Dict[int, List[str]], hash_cache: dict, cache_path: str, progress_cb=None) -> Tuple[Dict[str, List[List[str]]], FileStats]:
+def find_duplicate_files(size_dict: Dict[int, List[str]], folder_hashes: Dict[str, dict], store_hashes: bool, progress_cb=None) -> Tuple[Dict[str, List[List[str]]], FileStats]:
     """
     Second pass: Identify duplicate files by comparing hashes of files with same size.
-    Uses a persistent hash cache to avoid unnecessary rehashing.
+    Uses folder-based hash storage to avoid unnecessary rehashing.
     """
     print("\n[2/4] Comparing file contents...")
+    if store_hashes:
+        print("Hash storage enabled - using cached hashes where available")
+    else:
+        print("Hash storage disabled - computing all hashes")
+    
     duplicates: Dict[str, List[List[str]]] = {}
     stats = FileStats()
-    updated = False
+    cache_hits = 0
+    cache_misses = 0
 
     total_groups = len(size_dict)
     for idx, (size, files) in enumerate(size_dict.items()):
         hash_dict: Dict[str, List[str]] = {}
         for file in files:
-            file_hash = get_file_hash(file, hash_cache)
+            # Track cache hits/misses
+            file_dir = os.path.dirname(file)
+            file_name = os.path.basename(file)
+            was_cached = (store_hashes and file_dir in folder_hashes and 
+                         file_name in folder_hashes.get(file_dir, {}))
+            
+            file_hash = get_file_hash_with_storage(file, folder_hashes, store_hashes)
+            
+            if was_cached:
+                cache_hits += 1
+            else:
+                cache_misses += 1
+            
             if file_hash:
                 hash_dict.setdefault(file_hash, []).append(file)
-                updated = True
+        
         for file_hash, file_list in hash_dict.items():
             if len(file_list) > 1:
                 dir_path = os.path.dirname(file_list[0])
                 duplicates.setdefault(dir_path, []).append(file_list)
                 stats.bytes_saved += os.path.getsize(file_list[0]) * (len(file_list) - 1)
+        
         if progress_cb:
             progress_cb('Comparing files', idx+1, total_groups)
 
-    if updated:
-        save_hash_cache(cache_path, hash_cache)
+    # Save all modified folder hashes
+    if store_hashes:
+        save_all_folder_hashes(folder_hashes)
+        print(f"\nHash cache statistics:")
+        print(f"- Cache hits: {cache_hits}")
+        print(f"- Cache misses: {cache_misses}")
+        print(f"- Cache efficiency: {(cache_hits/(cache_hits+cache_misses)*100) if (cache_hits+cache_misses) > 0 else 0:.1f}%")
 
     if duplicates:
         print(f"\nDuplicate Files Found:")
@@ -858,9 +936,10 @@ def get_file_priority(file_path: str) -> Tuple[float, bool, int]:
         print(f"Error getting priority for file {file_path}: {e}")
         return (float('inf'), True, float('inf'))
 
-def delete_duplicate_files(duplicates: Dict[str, List[List[str]]], hash_cache: dict, progress_cb=None) -> int:
+def delete_duplicate_files(duplicates: Dict[str, List[List[str]]], folder_hashes: Dict[str, dict], store_hashes: bool, progress_cb=None) -> int:
     """
     Final pass: Delete duplicate files while keeping one copy. Logs full details to the log window.
+    Updates hash storage to remove deleted files.
     """
     print("\n[3/4] Removing duplicate files...")
     total_deleted = 0
@@ -869,7 +948,7 @@ def delete_duplicate_files(duplicates: Dict[str, List[List[str]]], hash_cache: d
     for dir_path, file_groups in duplicates.items():
         for file_list in file_groups:
             # Prepare detailed info for this duplicate group
-            hashes = [(f, get_file_hash(f, hash_cache)) for f in file_list]
+            hashes = [(f, get_file_hash_with_storage(f, folder_hashes, store_hashes)) for f in file_list]
             sizes = [(f, os.path.getsize(f)) for f in file_list]
             print(f"\nDuplicate group in directory: {dir_path}")
             for f, h in hashes:
@@ -882,31 +961,61 @@ def delete_duplicate_files(duplicates: Dict[str, List[List[str]]], hash_cache: d
             for file_path in files_to_delete:
                 try:
                     # Get hash before deleting the file
-                    file_hash = get_file_hash(file_path, hash_cache)
+                    file_hash = get_file_hash_with_storage(file_path, folder_hashes, store_hashes)
                     os.remove(file_path)
                     print(f"-> Deleted: {file_path} (duplicate of {file_to_keep})")
                     print(f"   Reason: Same hash as kept file ({file_hash})")
+                    
+                    # Remove from hash storage
+                    if store_hashes:
+                        file_dir = os.path.dirname(file_path)
+                        file_name = os.path.basename(file_path)
+                        if file_dir in folder_hashes and file_name in folder_hashes[file_dir]:
+                            del folder_hashes[file_dir][file_name]
+                    
                     total_deleted += 1
                 except Exception as e:
                     print(f"Error deleting {file_path}: {e}")
             processed += 1
             if progress_cb:
                 progress_cb('Removing duplicates', processed, total_groups)
+    
+    # Save updated hash storage after deletions
+    if store_hashes:
+        save_all_folder_hashes(folder_hashes)
+    
     return total_deleted
 
-def remove_duplicate_files(folder_path: str, progress_cb=None) -> Tuple[int, FileStats]:
+def remove_duplicate_files(folder_path: str, store_hashes: bool = True, progress_cb=None) -> Tuple[int, FileStats]:
     """
-    Main function to remove duplicate files in a folder. Uses a persistent hash cache.
+    Main function to remove duplicate files in a folder. Uses folder-based hash storage.
+    
+    Args:
+        folder_path: Root folder to scan
+        store_hashes: Whether to use/store hashes in 00_hashes.json files
+        progress_cb: Progress callback function
+    
+    Returns:
+        Tuple of (files_deleted, FileStats)
     """
     print(f"\n[Starting duplicate file removal in: {folder_path}]")
     print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Hash storage: {'ENABLED' if store_hashes else 'DISABLED'}")
 
-    # Prepare hash cache path
-    cache_path = os.path.join(folder_path, ".duplicate_hash_cache.json")
-    hash_cache = load_hash_cache(cache_path)
+    # Load all folder hash files if storage is enabled
+    folder_hashes = {}
+    if store_hashes:
+        print("Loading existing hash files...")
+        folder_hashes = load_all_folder_hashes(folder_path)
+        print(f"Loaded hash data from {len(folder_hashes)} folders")
 
-    # Get all files recursively
-    all_files = [os.path.join(dp, f) for dp, dn, fn in os.walk(folder_path) for f in fn]
+    # Get all files recursively (exclude hash storage files)
+    all_files = []
+    for dp, dn, fn in os.walk(folder_path):
+        for f in fn:
+            if f != HASH_STORAGE_FILENAME:  # Skip hash storage files
+                all_files.append(os.path.join(dp, f))
+    
     if not all_files:
         print("No files found in the specified directory!")
         return 0, FileStats()
@@ -919,13 +1028,13 @@ def remove_duplicate_files(folder_path: str, progress_cb=None) -> Tuple[int, Fil
     if not duplicate_sizes:
         return 0, stats
     
-    # Second pass: Find actual duplicates (with cache)
-    duplicates, stats = find_duplicate_files(duplicate_sizes, hash_cache, cache_path, progress_cb)
+    # Second pass: Find actual duplicates (with folder-based hash storage)
+    duplicates, stats = find_duplicate_files(duplicate_sizes, folder_hashes, store_hashes, progress_cb)
     if not duplicates:
         return 0, stats
     
     # Final pass: Delete duplicates (detailed log)
-    stats.files_deleted = delete_duplicate_files(duplicates, hash_cache, progress_cb)
+    stats.files_deleted = delete_duplicate_files(duplicates, folder_hashes, store_hashes, progress_cb)
     
     print(f"\n[4/4] Operation completed successfully!")
     print(f"- Total files deleted: {stats.files_deleted}")
@@ -947,6 +1056,7 @@ class TensorToolsUI:
         self.civitai_btn = None
         self.sort_btn = None
         self.category_btn = None
+        self.store_hashes_var = None  # Checkbox variable for hash storage
         self.setup_ui()
     
     def setup_ui(self):
@@ -1009,6 +1119,23 @@ class TensorToolsUI:
 
         self.start_btn = tk.Button(buttons_frame, text="Remove Duplicates", command=self.start_removal, bg='#d32f2f', fg='#ffffff', activebackground='#b71c1c', activeforeground='#fff')
         self.start_btn.grid(row=0, column=3, sticky='ew', padx=(3, 0))
+
+        # Hash storage checkbox (for duplicate removal)
+        hash_frame = tk.Frame(self.root, bg='#23272e', padx=10, pady=5)
+        hash_frame.pack(expand=False, fill='x')
+        
+        self.store_hashes_var = tk.BooleanVar(value=True)  # On by default
+        hash_checkbox = tk.Checkbutton(
+            hash_frame,
+            text="Store hashes in 00_hashes.json files (speeds up future scans)",
+            variable=self.store_hashes_var,
+            bg='#23272e',
+            fg='#e6e6e6',
+            selectcolor='#444',
+            activebackground='#23272e',
+            activeforeground='#e6e6e6'
+        )
+        hash_checkbox.pack(anchor='w')
 
         # Progress bar
         self.progressbar = ttk.Progressbar(self.root, orient='horizontal', length=500, mode='determinate')
@@ -1154,7 +1281,8 @@ class TensorToolsUI:
         """Execute duplicate removal operation."""
         old_stdout, log_capture = self._setup_logging()
         try:
-            total_deleted, stats = remove_duplicate_files(folder_path, progress_cb=self.update_progress_ui)
+            store_hashes = self.store_hashes_var.get()
+            total_deleted, stats = remove_duplicate_files(folder_path, store_hashes=store_hashes, progress_cb=self.update_progress_ui)
             self._save_report(folder_path, log_capture.getvalue(), "00_duplicate_removal_report")
             self._show_removal_completion(stats, folder_path)
         finally:

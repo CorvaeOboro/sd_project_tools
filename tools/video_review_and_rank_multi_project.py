@@ -1,23 +1,22 @@
 """
- VIDEO REVIEW AND RANK
- Browse folders of videos, move videos into ranked folders with mouse clicks
- Project-scale review and ranking for stable diffusion video projects
+VIDEO REVIEW AND RANK
+Browse folders of videos, move videos into ranked folders with mouse clicks
+Project-scale review and ranking for stable diffusion video projects
 
-  temp caching: Only visible videos in the UI are temp-copied and loaded for playback. Originals are never locked.
+temp cacheing: Only visible videos in the UI are temp-copied and loaded for playback. Originals are never locked.
+
+VERSION::20251002
 """
 # ===========================================================================================
 import os
 import sys
-import tempfile
-import shutil
 import threading
-import time
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout,
                              QWidget, QGridLayout, QScrollArea, QPushButton, QHBoxLayout,
-                             QLineEdit, QFileDialog, QCheckBox, QFrame)
-from PyQt5.QtGui import QMouseEvent
+                             QLineEdit, QFileDialog)
+
 from PyQt5.QtCore import (Qt, QThreadPool, QRunnable, pyqtSignal, QObject,
-                          QSize, QEvent, QTimer, QUrl)
+                           QEvent, QUrl)
 import qdarkstyle
 import cv2
 from PIL import Image

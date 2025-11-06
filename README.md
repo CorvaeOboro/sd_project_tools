@@ -29,12 +29,12 @@ or manually install:
 
 # Review and Rank
 - [image_review_and_rank_multi_project.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/image_review_and_rank_multi_project.py) = project image reviewer , quickly rank images into subfolders using left click = 1 and right click = 2 , colorizes by amount 
- <a href="https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/image_review_and_rank_multi_project.py"> <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main//docs/image_review_and_rank_multi_project.png?raw=true" height="200" /> </a>
+ <a href="https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/image_review_and_rank_multi_project.py"> <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main//docs/image_review_and_rank_multi_project.png?raw=true" height="300" /> </a>
 - [image_review_and_rank.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/image_review_and_rank.py) = simpler image viewer from a folderpath , quickly rank fullscreen singular images into subfolders using 1,2, or 3 . navigate with arrows . view as tiled texture with T 
 
 # ComfyUI custom nodes
 located in /comfyui/ folder , copy into comfyui custom_nodes  to install
-<img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main//docs/diffusion_project_tools_comfy_workflow.png?raw=true" height="200" />
+<img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main//docs/diffusion_project_tools_comfy_workflow.png?raw=true" height="400" />
 
 - [Checkpoint Loader By String Dirty](/comfyui/ComfyUI_OBORO_CheckpointLoaderByStringDirty/checkpoint_loader_by_string_dirty.py) = Loads a Diffusion checkpoint by matching a string input (full path, relative path, or filename) to any registered checkpoint.
 - [Checkpoint Random Selector](/comfyui/ComfyUI_OBORO_RandomCheckpointSelector/random_checkpoint_selector.py) = Randomly selects a checkpoint from a category/folder at a set interval 
@@ -56,6 +56,7 @@ located in /comfyui/ folder , copy into comfyui custom_nodes  to install
 <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main//docs/tensor_tools_all.png?raw=true" height="200" /> 
 
 - [tensor_tools_all.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/tensor_tools_all.py) = gets info from civitai , sorts by info by model type and category , removes duplicates by hash
+- [lora_project_structure_generator.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/lora_project_structure_generator.py) = generates project folder structures from LoRA .info files with automatic image downloads and prompt extraction to /prompt/prompt_flux.md
 
 # Prompt Entry
 <a href="https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/gen_project_prompt_entry.py"> <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main//docs/gen_project_prompt_entry.png?raw=true" height="200" /> </a>
@@ -75,7 +76,7 @@ located in /comfyui/ folder , copy into comfyui custom_nodes  to install
 
 - # Video Tools
 - [video_clip_marker.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_clip_marker.py) = tool for marking and processing video clips
-- <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/video_clip_marker.png?raw=true" height="200" />
+- <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/video_clip_marker.png?raw=true" height="300" />
 - [video_combine.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_combine.py) = GUI tool for combining videos, adjusting speed, removing first frames, and batch processing video folders. Uses ffmpeg
 - [video_add_audio.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_add_audio.py) = quick Add audio to a video file using ffmpeg and ffprobe. Supports both GUI and CLI modes. Drag-and-drop interface.
 - [video_place_in_image_composite.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_place_in_image_composite.py) = GUI tool to composite a video into a region of an image using template matching and homography. 
@@ -89,12 +90,12 @@ located in /comfyui/ folder , copy into comfyui custom_nodes  to install
  - [VIDEO_image_sequence_to_webp.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/VIDEO_image_sequence_to_webp.py) = convert folders of image sequences into optimized animated WebP
  - [video_audio_batch_processor.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_audio_batch_processor.py) = batch operations for extracting, replacing, or adjusting audio across many videos
  - [video_interlacing_fix.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_interlacing_fix.py) = deinterlace and repair interlaced footage using ffmpeg filters
- - [video_to_gif_cropper.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_to_gif_cropper.py) = crop and convert video clips into GIFs with loop-friendly settings
+ - [video_to_gif_cropper.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_to_gif_cropper.py) = crop and clip video into looping GIF or WebP
   - [video_music_sync.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/video_music_sync.py) = align audio to music video timing via waveform analysis , useful for syncing stage show to record audio
-  <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/video_music_sync.png?raw=true" height="200" />
+  <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/video_music_sync.png?raw=true" height="400" />
 
 # Voice Action Tools
-- [voice_action_organizer.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/voice_action_organizer.py) = GUI tool for offline speech recognition (using Vosk) to trigger hotkeys or move selected files in Windows Explorer using spoken commands. JSON action management. Requires the [Vosk speech model](https://alphacephei.com/vosk/models)
+- [voice_action_organizer.py](https://github.com/CorvaeOboro/sd_project_tools/blob/main/tools/voice_action_organizer.py) = use voice to move selected files into specific folders , if nothing selected will open ot that location , useful for project organization . Requires the [Vosk speech model](https://alphacephei.com/vosk/models) for local offline speech recognition 
 - <img src="https://github.com/CorvaeOboro/sd_project_tools/blob/main/docs/voice_action_organizer.png?raw=true" height="200" />
 
 # Audio Tools

@@ -1,15 +1,22 @@
+# --- Core dependencies for local-only video/audio processing tool ---
+pydub
+soundfile
+librosa
+# tqdm already present, needed for progress bars
+tqdm==4.66.2
+numpy==1.26.4
+
+# --- Existing project dependencies below ---
 PyQt5
 pyperclip
 qdarkstyle
 requests
 sd-parsers
 imageio
-numpy==1.26.4
 opencv-python
 psd-tools==1.9.30
 moviepy==1.0.3
 Pillow==10.2.0
-tqdm==4.66.2
 matplotlib==3.7.3
 scikit-image==0.21.0
 pywin32

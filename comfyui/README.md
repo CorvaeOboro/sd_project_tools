@@ -6,9 +6,10 @@
 
 A collection of custom nodes for ComfyUI focused on project structures and variations.
 - for example loading random files by string , randomizing lora string strength 
-- and additions to load and save nodes with external folderpath and filename outputs 
+- and additions to load and save with external folderpath and filename outputs 
 - each node is self-contained and could be installed separately if prefer 
-- <img src="docs/comfyui_oboro_load_checkpoint_text_file_basic.png" height="200" />
+
+<img src="docs/comfyui_oboro_load_checkpoint_text_file_basic.png" width="800" />
 
 # install 
 - install through the manager or [download](https://github.com/CorvaeOboro/sd_project_tools/archive/refs/heads/main.zip) as a zip and extract as folder into the ComfyUI `custom_nodes` directory 

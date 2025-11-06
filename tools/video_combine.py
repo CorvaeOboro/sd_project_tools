@@ -3,6 +3,8 @@ VIDEO COMBINER
 using ffmepg quickly combine videos in a timeline 
 - increase speed , fix generated videos unfavorable slow motion
 - first frame clipping range , this is useful for img2vid to remove the bad "warmup" starting to move or shifting lighting
+
+
 """
 
 import os
@@ -108,7 +110,7 @@ def process_videos(input_folder, settings, log, progress, log_widget):
         log("No video files found in the selected folder.")
         return
     
-    total_steps = len(video_files) + 2  # conversion for each + combine + (optional) speed-up
+    total_steps = len(video_files) + 2  # conversion for each + combine + optional speed-up
     current_progress = 0
     tqdm_out = TqdmToText(log_widget)
     log(f"Starting conversion of {len(video_files)} videos...")
@@ -119,7 +121,7 @@ def process_videos(input_folder, settings, log, progress, log_widget):
         output_path = os.path.join(temp_folder, video)
         
         # Build filter chain: remove initial frames if requested,
-        # then scale to fit (preserving aspect ratio) and pad with black.
+        # then scale to fit , preserving aspect ratio and pad with black.
         filter_chain = ""
         if settings["remove_first_frames"] and int(settings["frames_to_remove"]) > 0:
             filter_chain += f"select='gte(n,{settings['frames_to_remove']})',setpts=PTS-STARTPTS,"
@@ -179,7 +181,7 @@ def process_videos(input_folder, settings, log, progress, log_widget):
     progress(current_progress)
     log("Finished combining videos.")
     
-    # --- Speed-up (if requested) ---
+    # --- Speed-up if requested ---
     if float(settings["speed_up_factor"]) != 1.0:
         log("Speeding up video...")
         speed_up_video(intermediate_file, final_output_file, float(settings["speed_up_factor"]), settings, log)
@@ -198,7 +200,7 @@ def process_videos(input_folder, settings, log, progress, log_widget):
     log("Final video saved as: " + final_output_file)
 
 # ---------------------------------------------------------------
-# Tkinter UI code with dark mode styling
+# Tkinter UI 
 
 def log_message(msg):
     """Append a message to the log text widget in a thread-safe way."""
@@ -250,14 +252,12 @@ def browse_ffmpeg():
 root = tk.Tk()
 root.title("Video Combiner Tool")
 
-# Set overall dark mode colors
 DARK_BG = "#2e2e2e"
 DARK_FG = "#ffffff"
 ACCENT_BG = "#3e3e3e"
 
 root.configure(bg=DARK_BG)
 
-# Configure ttk style for dark mode
 style = ttk.Style(root)
 style.theme_use("clam")
 style.configure("TLabel", background=DARK_BG, foreground=DARK_FG)
@@ -349,7 +349,7 @@ progress_bar = ttk.Progressbar(root, orient="horizontal", length=400, mode="dete
 progress_bar.pack(pady=10)
 progress_bar["maximum"] = 100
 
-# --- Log output (with scrollbar) ---
+# --- Log output with scrollbar ---
 log_frame = tk.Frame(root, bg=DARK_BG)
 log_frame.pack(padx=10, pady=10, fill="both", expand=True)
 log_widget = tk.Text(log_frame, height=15, bg=ACCENT_BG, fg=DARK_FG, insertbackground=DARK_FG)

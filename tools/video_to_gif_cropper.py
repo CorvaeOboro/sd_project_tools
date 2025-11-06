@@ -1,9 +1,8 @@
 """
-VIDEO TO GIF CROPPER 
+VIDEO CLIP CROP LOOP
 input video , select region , clip timeline range , 
 export to gif (low) or webp (high) animated forever 
 extra delay for start and end frames 
-similarity threshold 
 
 TODO:
 rearrange the UI into better sections 
@@ -20,6 +19,7 @@ when editing big video but only cropping a part of it , the processing may be lo
 we could consider first chopping the big video , then doing framesimilarity etc after 
 example a 6gb video took 20 min to crop a small section of a few seconds 
 
+VERSION::20251002
 """
 import os
 import cv2

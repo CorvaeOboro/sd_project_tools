@@ -1,9 +1,9 @@
 """
-Dynamic project-level __init__.py for ComfyUI custom nodes
---------------------------------------------------------
-This file automatically scans all subfolders with an __init__.py and merges their
+scans all subfolders with an __init__.py and merges their
 NODE_CLASS_MAPPINGS and NODE_DISPLAY_NAME_MAPPINGS.
-No need to edit this file by hand or regenerate it when adding/removing nodes.
+
+was setup this way to enable each node to be independent and able to 
+be simply copied out of this folder if you only want specific nodes instead of all
 """
 import os
 import importlib

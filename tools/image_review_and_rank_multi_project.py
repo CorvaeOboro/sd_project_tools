@@ -16,6 +16,7 @@ import sys
 import json
 import tempfile
 import shutil
+import subprocess
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout,
                              QWidget, QGridLayout, QScrollArea, QPushButton, QHBoxLayout,
                              QLineEdit, QFileDialog, QCheckBox, QScrollBar, QFrame)
@@ -592,11 +593,11 @@ class MainWindow(QMainWindow):
             self.animated_temp_map[path] = None
 
     # -----------------------------------------------------------------------
-    # Event filter for left/right click
+    # Event filter for left/right/middle click
     # -----------------------------------------------------------------------
     def eventFilter(self, source, event):
         if event.type() == QEvent.MouseButtonPress:
-            if event.button() in (Qt.LeftButton, Qt.RightButton):
+            if event.button() in (Qt.LeftButton, Qt.RightButton, Qt.MiddleButton):
                 pos = event.pos()
                 widget = source.childAt(pos)
                 if isinstance(widget, QLabel):
@@ -605,6 +606,8 @@ class MainWindow(QMainWindow):
                         self.move_image_to_subfolder(image_path, '01')
                     elif event.button() == Qt.RightButton:
                         self.move_image_to_subfolder(image_path, '02')
+                    elif event.button() == Qt.MiddleButton:
+                        self.reveal_in_explorer(image_path)
                     return True
         elif event.type() == QEvent.MouseMove:
             # Mouse move: update filename label
@@ -682,6 +685,21 @@ class MainWindow(QMainWindow):
             if lbl.objectName() == image_path:
                 return lbl
         return None
+
+    def reveal_in_explorer(self, image_path):
+        """
+        Opens file explorer and selects the specified file.
+        Works on Windows using explorer.exe /select.
+        """
+        if not os.path.exists(image_path):
+            print(f"File not found: {image_path}")
+            return
+        
+        try:
+            # Windows: Use explorer.exe with /select to highlight the file
+            subprocess.run(['explorer', '/select,', os.path.normpath(image_path)])
+        except Exception as e:
+            print(f"Error revealing file in explorer: {e}")
 
     # -----------------------------------------------------------------------
     # ITEM button color updates, etc.

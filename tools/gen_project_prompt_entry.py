@@ -1,25 +1,18 @@
 """
-GEN Input Prompt Entry UI for Stable Diffusion Project 
+GEN Input Prompt Entry UI for Diffusion Project 
 
 A GUI tool for managing and organizing projects with multiple Stable Diffusion prompt files.
 a visual interface for prompt entry and review.
 
-Features:
-    - Visual dashboard displaying asset PSD preview and their associated prompts in prompt subfolder
+    - Visual dashboard displaying asset PSD/PNG preview and their associated prompts in prompt subfolder
     - prompt .md text files for :
         * SDXL positive + negative , SD1.5 positive + negative  Flux , Video  , Florence2 generated 
     - Support for both flat and hierarchical file organization
+    - Supports PSD, PSB, and PNG files (PNG files can be used without a PSD if in item folder)
 
-Usage:
-    1. Launch the tool , paste project folder path , 
-    2. Choose your preferred file organization (flat or subfolder)
-    3. click Load
-    4. Edit prompts directly in the UI
-    5. Changes are automatically saved
-
-TypeA Project Structure psds are in main folder :
+TypeA Project Structure psds/pngs are in main folder :
     project_folder/
-    ├── item_example.psd                     # Source PSD file
+    ├── item_example.psd                     # Source PSD file (or .png)
     ├── item_example/                        # Asset subfolder
     │   ├── prompt/                          # Prompt files subfolder
     │   │   ├── prompt_sdxl.md               # SDXL positive prompts
@@ -29,21 +22,21 @@ TypeA Project Structure psds are in main folder :
     │   │   ├── prompt_flux.md               # Additional notes/metadata
     │   │   ├── prompt_video.md              # Video prompts
     │   │   └── prompt_florence.md           # Florence generated prompts
-    ├── item_exampleB.psd                    # Source PSD file
+    ├── item_exampleB.png                    # PNG file (no PSD needed)
     ├── item_exampleB/                       # Asset subfolder
     │   ├── prompt/                          # Prompt files subfolder
     │   │   ├── prompt_sdxl.md               # SDXL positive prompts
     │   │   ├── ...                          # continued
 
-TypeB Project Structure psds are in subfolders:
+TypeB Project Structure psds/pngs are in subfolders:
     project_folder/
     ├── item_example/                        # Asset subfolder
-    │   ├── item_example.psd                 # Source PSD file
+    │   ├── item_example.psd                 # Source PSD file (or .png)
     │   ├── prompt/                          # Prompt files subfolder
     │   │   ├── prompt_sdxl.md               # SDXL positive prompts
     │   │   ├── ...                          # continued
     ├── item_exampleB/                       # Asset subfolder
-    │   ├── item_exampleB.psd                # Source PSD file
+    │   ├── item_exampleB.png                # PNG file (no PSD needed)
     │   ├── prompt/                          # Prompt files subfolder
     │   │   ├── prompt_sdxl.md               # SDXL positive prompts
     │   │   ├── ...                          # continued
@@ -53,9 +46,10 @@ FEATURES TODO :
 - [ ] separate the UI into its own class for modularity 
 - [ ] color code the video prompt entryas muted purple 
 - [ ] add a button to multiply the strength of anythig with strength over 1 , to reduce 
-add more Simplify prompt buttons such as = ( remove loras ) , deduplicate ( comma delimeter based)
-"""
+- [ ] add more "Simplify" prompt buttons such as = ( remove loras ) , deduplicate ( comma delimeter based)
 
+VERSION::20251029
+"""
 
 import os
 import tkinter as tk
@@ -70,19 +64,16 @@ class AssetDataEntryUI(tk.Tk):
     def __init__(self, default_folder=""):
         super().__init__()
         self.title("Asset Data Entry")
-        self.geometry("1600x800")  # widened for extra columns
+        self.geometry("1600x800")  
 
-        # Dark (black) mode styles
         self.configure(bg="black")
         style = ttk.Style(self)
         style.theme_use("clam")
 
-        # Make label text white, background black
         style.configure("TLabel", background="black", foreground="white")
         style.configure("TCheckbutton", background="black", foreground="white")
         style.configure("TFrame", background="black")
 
-        # Scrollbar in dark style
         style.configure(
             "Vertical.TScrollbar",
             gripcount=0,
@@ -99,6 +90,9 @@ class AssetDataEntryUI(tk.Tk):
         # Store the folder in a StringVar so the user can change it via the UI
         self.folder_var = tk.StringVar(value=default_folder)
         self.input_folder = default_folder
+        # Optional secondary folder (e.g., "Upscale") for upscale structures
+        self.secondary_folder_var = tk.StringVar(value="")
+        self.selected_folder_filter = None # Current selected subfolder filter from folders panel (TypeB only)
 
         # StringVar for new entry name
         self.add_entry_var = tk.StringVar()
@@ -113,8 +107,6 @@ class AssetDataEntryUI(tk.Tk):
         self.active_asset = None
         self.active_md_key = None
 
-        # -------------------------------
-        # Top control frame (now multi-row)
         # -------------------------------
         control_frame = ttk.Frame(self)
         control_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=10)
@@ -145,6 +137,16 @@ class AssetDataEntryUI(tk.Tk):
         load_button.pack(side=tk.LEFT, padx=3)
         generate_button = ttk.Button(row2, text="Generate MD Files", command=self.on_generate_md_files)
         generate_button.pack(side=tk.LEFT, padx=3)
+        # --- Row 2.5: Secondary folder (e.g., Upscale) ---
+        row2b = ttk.Frame(control_frame)
+        row2b.pack(side=tk.TOP, fill=tk.X, pady=2)
+        label_secondary = ttk.Label(row2b, text="Secondary folder:")
+        label_secondary.pack(side=tk.LEFT, padx=(3, 0))
+        secondary_entry = ttk.Entry(row2b, textvariable=self.secondary_folder_var, width=20)
+        secondary_entry.pack(side=tk.LEFT, padx=3)
+        secondary_entry.bind("<Return>", lambda e: self.on_secondary_folder_changed())
+        use_upscale_btn = ttk.Button(row2b, text="Use Upscale", command=lambda: self._set_secondary_and_refresh("Upscale"))
+        use_upscale_btn.pack(side=tk.LEFT, padx=3)
 
         # --- Row 3: Add entry, filter, structure ---
         row3 = ttk.Frame(control_frame)
@@ -167,17 +169,25 @@ class AssetDataEntryUI(tk.Tk):
             row3,
             text="PSDs in root folder (vs. in subfolders)",
             variable=self.psds_in_root_var,
-            command=self.scan_folder
+            command=self.on_structure_toggle
         )
         structure_check.pack(side=tk.LEFT, padx=8)
+        # Debug mode toggle
+        self.debug_mode_var = tk.BooleanVar(value=False)
+        debug_check = ttk.Checkbutton(
+            row3,
+            text="Debug",
+            variable=self.debug_mode_var,
+            command=lambda: self.debug_print("Debug mode toggled: " + str(self.debug_mode_var.get()))
+        )
+        debug_check.pack(side=tk.LEFT, padx=8)
 
         # -------------------------------
-        # Header row (non-scrollable)
+        # Header row 
         # -------------------------------
         header_frame = ttk.Frame(self)
         header_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
 
-        # Create labels for each column (smaller widths, tighter spacing)
         # Empty space for image column
         hdr_preview = ttk.Label(header_frame, text="", anchor="center", width=20)
         hdr_preview.grid(row=0, column=0, padx=(5,10))
@@ -220,6 +230,23 @@ class AssetDataEntryUI(tk.Tk):
         self.scrollbar = ttk.Scrollbar(self.container_frame, orient="vertical", command=self.canvas.yview)
         self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        # Left-side folders panel (TypeB folder browser/filter)
+        self.folders_panel = ttk.Frame(main_content)
+        self.folders_panel.pack(side=tk.LEFT, fill=tk.Y, padx=6, pady=5)
+        # Ensure folders panel is leftmost by re-packing the container_frame to the right of it
+        try:
+            self.container_frame.pack_forget()
+            self.container_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        except Exception:
+            pass
+        folders_title = ttk.Label(self.folders_panel, text="Folders", font=("TkDefaultFont", 11, "bold"))
+        folders_title.pack(side=tk.TOP, anchor="w")
+        self.folders_listbox = tk.Listbox(self.folders_panel, bg="#1e1e1e", fg="white", height=20)
+        self.folders_listbox.pack(side=tk.LEFT, fill=tk.Y)
+        folders_scroll = ttk.Scrollbar(self.folders_panel, orient="vertical", command=self.folders_listbox.yview)
+        folders_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.folders_listbox.configure(yscrollcommand=folders_scroll.set)
+        self.folders_listbox.bind("<<ListboxSelect>>", self.on_folder_selected)
 
         # This frame (items_frame) goes inside the canvas
         self.items_frame = ttk.Frame(self.canvas)
@@ -231,7 +258,6 @@ class AssetDataEntryUI(tk.Tk):
         self.right_panel = ttk.Frame(main_content, style="Dark.TFrame")
         self.right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, padx=10, pady=5)
 
-        # --- Refactored: Use a single vertical frame for all right panel widgets ---
         self.right_panel_content = ttk.Frame(self.right_panel)
         self.right_panel_content.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
@@ -273,28 +299,22 @@ class AssetDataEntryUI(tk.Tk):
         self.simplify_btn = ttk.Button(self.right_panel_button_frame, text="Simplify Prompt (Remove Strength)", command=self.simplify_active_prompt)
         self.simplify_btn.pack(side=tk.LEFT, padx=(0, 10))
 
-        # Text widget for active field (expands vertically, now below the buttons)
+        # Text widget for active field 
         self.active_text_area = tk.Text(self.right_panel_content, width=40, height=30, bg="#2d2d2d", fg="white")
         self.active_text_area.pack(side=tk.TOP, fill=tk.BOTH, expand=True, pady=5)
         self.active_text_area.bind("<KeyRelease>", self.on_active_text_change)
 
         # Initially hide the right panel
         self.right_panel.pack_forget()
+        # Populate folders panel initially
+        self.refresh_folders_panel()
 
 
-        # -------------------------------
-        # Mouse wheel binding
         # -------------------------------
         self.bind_all("<MouseWheel>", self._on_mousewheel, add=True)   # Windows
         self.bind_all("<Button-4>", self._on_mousewheel, add=True)     # Linux
         self.bind_all("<Button-5>", self._on_mousewheel, add=True)     # Linux
 
-        # (Optional) Uncomment these if you want to load on startup:
-        # self.scan_folder()
-        # self.refresh_assets_display()
-
-    # ------------------------------------------------------------------------
-    # Add entry logic
     # ------------------------------------------------------------------------
     def on_add_entry(self):
         """
@@ -356,7 +376,7 @@ class AssetDataEntryUI(tk.Tk):
         self.add_entry_var.set("")
 
     # ------------------------------------------------------------------------
-    # Saved Projects Logic
+    # Saved Projects 
     # ------------------------------------------------------------------------
     @property
     def settings_file(self):
@@ -371,7 +391,7 @@ class AssetDataEntryUI(tk.Tk):
         settings = {
             'folder': self.folder_var.get().strip(),
             'psds_in_root': self.psds_in_root_var.get(),
-            # Add more fields as needed
+            'secondary_folder': self.secondary_folder_var.get().strip(),
         }
         # Load or create settings file
         all_settings = {}
@@ -404,8 +424,11 @@ class AssetDataEntryUI(tk.Tk):
             # Restore settings
             self.folder_var.set(settings.get('folder', ''))
             self.psds_in_root_var.set(settings.get('psds_in_root', True))
+            self.secondary_folder_var.set(settings.get('secondary_folder', ''))
             self.input_folder = settings.get('folder', '')
             # Trigger UI refresh
+            self.selected_folder_filter = None
+            self.refresh_folders_panel()
             self.scan_folder()
             self.refresh_assets_display()
             self.show_status(f"Loaded settings from '{project_name}'", error=False)
@@ -432,9 +455,13 @@ class AssetDataEntryUI(tk.Tk):
         self.status_label.config(text=msg, foreground=("#ff8080" if error else "#80ff80"))
         self.status_label.after(3000, lambda: self.status_label.config(text=""))
 
-    # ------------------------------------------------------------------------
-    # Mouse wheel handling
-    # ------------------------------------------------------------------------
+    def debug_print(self, msg: str):
+        try:
+            if getattr(self, 'debug_mode_var', None) and self.debug_mode_var.get():
+                print(f"[gen_project_prompt_entry] {msg}")
+        except Exception:
+            pass
+
     def _on_mousewheel(self, event):
         """Scroll the canvas unless the event widget is a Text widget."""
         if event.widget.winfo_class() == 'Text':
@@ -449,10 +476,6 @@ class AssetDataEntryUI(tk.Tk):
             direction = -1 if event.delta > 0 else 1
             self.canvas.yview_scroll(direction, "units")
 
-    # ------------------------------------------------------------------------
-    # Event Handlers
-    # ------------------------------------------------------------------------
-
     def on_frame_configure(self, event):
         """Reset the scroll region to encompass the inner frame."""
         self.canvas.config(scrollregion=self.canvas.bbox("all"))
@@ -460,16 +483,90 @@ class AssetDataEntryUI(tk.Tk):
     def on_load_folder(self):
         """Handle the Load button: scan the user-specified folder and refresh the display."""
         folder = self.folder_var.get().strip()
+        self.debug_print(f"on_load_folder() called. folder='{folder}'")
         if not folder:
             return
 
         if not os.path.isdir(folder):
-            print(f"Folder does not exist: {folder}")
+            self.debug_print(f"Folder does not exist: {folder}")
             return
-        
+
         self.input_folder = folder
+        self.selected_folder_filter = None  # reset filter when loading a new folder
+        self.refresh_folders_panel()
         self.scan_folder()
         self.refresh_assets_display()
+
+    def on_secondary_folder_changed(self):
+        """Triggered when secondary folder text is confirmed (Enter)."""
+        self.selected_folder_filter = None
+        self.debug_print(f"on_secondary_folder_changed(): secondary='{self.secondary_folder_var.get().strip()}'")
+        self.refresh_folders_panel()
+        self.scan_folder()
+        self.refresh_assets_display()
+
+    def _set_secondary_and_refresh(self, value: str):
+        self.secondary_folder_var.set(value)
+        self.on_secondary_folder_changed()
+
+    def on_structure_toggle(self):
+        """Handle switching between TypeA (root) and TypeB (subfolders)."""
+        # Reset folder filter when structure changes
+        self.selected_folder_filter = None
+        self.debug_print(f"on_structure_toggle(): psds_in_root={self.psds_in_root_var.get()}")
+        # Refresh folders list and assets
+        self.refresh_folders_panel()
+        self.scan_folder()
+        self.refresh_assets_display()
+
+    def refresh_folders_panel(self):
+        """Populate the right-side folders list based on current settings.
+        Only used for TypeB (PSDs in subfolders). For TypeA it will show empty.
+        """
+        self.debug_print("refresh_folders_panel() start")
+        if not hasattr(self, 'folders_listbox'):
+            return
+        self.folders_listbox.delete(0, tk.END)
+        if not self.input_folder or not os.path.isdir(self.input_folder):
+            self.debug_print(f"refresh_folders_panel(): invalid base '{self.input_folder}'")
+            return
+        if self.psds_in_root_var.get():
+            # No folder navigation for TypeA
+            self.debug_print("refresh_folders_panel(): psds_in_root=True -> no folders listed")
+            return
+
+        # For structures like ART/<Category>/Upscale, we list categories under input_folder,
+        # regardless of whether a secondary folder (e.g., "Upscale") is specified.
+        parent = self.input_folder
+        self.debug_print(f"refresh_folders_panel(): parent='{parent}' secondary='{self.secondary_folder_var.get().strip()}'")
+        if not os.path.isdir(parent):
+            return
+        try:
+            entries = os.listdir(parent)
+        except Exception as e:
+            self.debug_print(f"refresh_folders_panel(): os.listdir error for '{parent}': {e}")
+            return
+        subfolders = [f for f in entries if os.path.isdir(os.path.join(parent, f))]
+        subfolders.sort()
+        self.debug_print(f"refresh_folders_panel(): found {len(subfolders)} subfolders -> {subfolders}")
+        for name in subfolders:
+            self.folders_listbox.insert(tk.END, name)
+
+        if self.folders_listbox.size() > 0:
+            self.folders_listbox.selection_clear(0, tk.END)
+            self.folders_listbox.selection_set(0)
+            self.folders_listbox.activate(0)
+        else:
+            self.debug_print("refresh_folders_panel(): no subfolders to display")
+
+    def on_folder_selected(self, event):
+        sel = self.folders_listbox.curselection()
+        if not sel:
+            return
+        value = self.folders_listbox.get(sel[0])
+        self.debug_print(f"on_folder_selected(): '{value}'")
+        self.selected_folder_filter = value
+        self.scan_folder()
 
     def on_generate_md_files(self):
         """
@@ -524,20 +621,24 @@ class AssetDataEntryUI(tk.Tk):
                     pass  # blank file
 
     # ------------------------------------------------------------------------
-    # Scanning and Displaying
-    # ------------------------------------------------------------------------
 
     def scan_folder(self):
-        """Scan the input folder for .psd files and gather relevant data."""
+        """Scan the input folder for .psd/.psb/.png files and gather relevant data."""
+        self.debug_print("scan_folder() start")
         self.assets_data = []
         
         if not self.input_folder or not os.path.isdir(self.input_folder):
+            self.debug_print(f"scan_folder(): invalid base '{self.input_folder}'")
             return
 
-        if self.psds_in_root_var.get():  # TypeA: PSDs/PSBs in root
+        if self.psds_in_root_var.get():  # TypeA: PSDs/PSBs/PNGs in root
+            self.debug_print("scan_folder(): TypeA mode (PSDs in root)")
+            # First, scan for PSD/PSB files
             asset_files = [f for f in os.listdir(self.input_folder) if f.lower().endswith((".psd", ".psb"))]
             asset_files.sort()
+            self.debug_print(f"scan_folder(): root psd/psb assets={len(asset_files)}")
 
+            processed_base_names = set()
             for asset in asset_files:
                 base_name = os.path.splitext(asset)[0]
                 asset_path = os.path.join(self.input_folder, asset)
@@ -550,30 +651,126 @@ class AssetDataEntryUI(tk.Tk):
                     continue
 
                 self._add_asset_data(base_name, asset_path, png_path, subfolder_path)
+                processed_base_names.add(base_name)
+            
+            # Now scan for standalone PNG files that don't have a PSD/PSB
+            all_files = os.listdir(self.input_folder)
+            for filename in all_files:
+                if filename.lower().endswith(".png"):
+                    base_name = os.path.splitext(filename)[0]
+                    # Skip if we already processed this base_name from a PSD/PSB
+                    if base_name in processed_base_names:
+                        continue
+                    
+                    png_path = os.path.join(self.input_folder, filename)
+                    subfolder_path = os.path.join(self.input_folder, base_name)
+                    # Only add if there's a matching subfolder with prompts
+                    if os.path.isdir(subfolder_path):
+                        # Use PNG as the asset_path (no PSD exists)
+                        self._add_asset_data(base_name, png_path, png_path, subfolder_path)
+                        self.debug_print(f"scan_folder(): added PNG-only asset '{base_name}'")
 
-        else:  # TypeB: PSDs/PSBs in subfolders
-            subfolders = [f for f in os.listdir(self.input_folder) if os.path.isdir(os.path.join(self.input_folder, f))]
-            subfolders.sort()
+        else:  # TypeB: PSDs/PSBs/PNGs in subfolders (with optional secondary folder)
+            base_parent = self.input_folder
+            sec = self.secondary_folder_var.get().strip()
+            if not os.path.isdir(base_parent):
+                self.refresh_assets_display()
+                return
 
-            for subfolder in subfolders:
-                subfolder_path = os.path.join(self.input_folder, subfolder)
-                asset_files = [f for f in os.listdir(subfolder_path) if f.lower().endswith((".psd", ".psb"))]
-                
+            # Determine category subfolders under base_parent
+            category_subfolders = [f for f in os.listdir(base_parent) if os.path.isdir(os.path.join(base_parent, f))]
+            category_subfolders.sort()
+
+            for subfolder in category_subfolders:
+                if self.selected_folder_filter and subfolder != self.selected_folder_filter:
+                    continue
+                # If secondary folder is set (e.g., "Upscale"), look inside category/secondary
+                if sec:
+                    target_folder = os.path.join(base_parent, subfolder, sec)
+                else:
+                    target_folder = os.path.join(base_parent, subfolder)
+
+                if not os.path.isdir(target_folder):
+                    continue
+
+                # First, scan for PSD/PSB files
+                asset_files = [f for f in os.listdir(target_folder) if f.lower().endswith((".psd", ".psb"))]
+                processed_base_names = set()
+                parent_folder_name = os.path.basename(target_folder)
+
                 for asset in asset_files:
                     base_name = os.path.splitext(asset)[0]
-                    asset_path = os.path.join(subfolder_path, asset)
-                    png_path = os.path.join(subfolder_path, base_name + ".png")
+                    
+                    # FILTER: Only include PSD/PSB files whose base name matches the parent folder name
+                    # e.g., in "fruit/apple/", only "apple.psd" should be shown, not "apple_art.psd"
+                    if base_name != parent_folder_name:
+                        self.debug_print(f"scan_folder(): skipping PSD/PSB '{asset}' - base_name '{base_name}' doesn't match folder '{parent_folder_name}'")
+                        continue
+                    
+                    asset_path = os.path.join(target_folder, asset)
+                    png_path = os.path.join(target_folder, base_name + ".png")
                     if not os.path.isfile(png_path):
                         png_path = None
 
+                    # subfolder_path represents the folder that contains the prompt subfolder
+                    # Prefer an ITEM subfolder named after the base_name if present AND it has a prompt folder
+                    item_prompt_dir = os.path.join(target_folder, base_name)
+                    item_prompt_folder = os.path.join(item_prompt_dir, "prompt")
+                    if os.path.isdir(item_prompt_dir) and os.path.isdir(item_prompt_folder):
+                        self.debug_print(f"scan_folder(): using item prompt dir '{item_prompt_dir}' for '{base_name}'")
+                        subfolder_path = item_prompt_dir
+                    else:
+                        subfolder_path = target_folder
                     self._add_asset_data(base_name, asset_path, png_path, subfolder_path)
-
+                    processed_base_names.add(base_name)
+                
+                # Now scan for standalone PNG files that don't have a PSD/PSB
+                all_files = os.listdir(target_folder)
+                for filename in all_files:
+                    if filename.lower().endswith(".png"):
+                        base_name = os.path.splitext(filename)[0]
+                        # Skip if we already processed this base_name from a PSD/PSB
+                        if base_name in processed_base_names:
+                            continue
+                        
+                        # FILTER: Only include PNG files whose base name matches the parent folder name
+                        # e.g., in "fruit/apple/", only "apple.png" should be shown, not "apple_art.png"
+                        parent_folder_name = os.path.basename(target_folder)
+                        if base_name != parent_folder_name:
+                            self.debug_print(f"scan_folder(): skipping PNG '{filename}' - base_name '{base_name}' doesn't match folder '{parent_folder_name}'")
+                            continue
+                        
+                        png_path = os.path.join(target_folder, filename)
+                        # Check for item prompt dir or use target_folder
+                        item_prompt_dir = os.path.join(target_folder, base_name)
+                        item_prompt_folder = os.path.join(item_prompt_dir, "prompt")
+                        if os.path.isdir(item_prompt_dir) and os.path.isdir(item_prompt_folder):
+                            # PNG in parent, prompts in subfolder (e.g., target/item.png + target/item/prompt/)
+                            subfolder_path = item_prompt_dir
+                            self._add_asset_data(base_name, png_path, png_path, subfolder_path)
+                            self.debug_print(f"scan_folder(): added PNG-only asset '{base_name}' (PNG in parent, prompts in subfolder)")
+                        else:
+                            # PNG in same folder as prompts (e.g., target/item.png + target/prompt/)
+                            # Check if there's a prompt folder in target_folder
+                            prompt_folder = os.path.join(target_folder, "prompt")
+                            if os.path.isdir(prompt_folder):
+                                subfolder_path = target_folder
+                                self._add_asset_data(base_name, png_path, png_path, subfolder_path)
+                                self.debug_print(f"scan_folder(): added PNG-only asset '{base_name}' (PNG and prompts in same folder)")
+                    
         self.refresh_assets_display()
 
     def _add_asset_data(self, base_name, psd_path, png_path, subfolder_path):
         """Helper method to add asset data to self.assets_data"""
-        # Create path to prompt folder
+        # Create path to prompt folder 
         prompt_folder = os.path.join(subfolder_path, "prompt")
+        if not os.path.isdir(prompt_folder):
+            alt_prompt_folder = os.path.join(subfolder_path, "prompts")
+            if os.path.isdir(alt_prompt_folder):
+                self.debug_print(f"_add_asset_data('{base_name}'): using fallback prompt folder '{alt_prompt_folder}'")
+                prompt_folder = alt_prompt_folder
+            else:
+                self.debug_print(f"_add_asset_data('{base_name}'): prompt folder missing under '{subfolder_path}'")
         
         # Identify potential .md files
         prompt_sdxl_path = os.path.join(prompt_folder, "prompt_sdxl.md")
@@ -589,36 +786,50 @@ class AssetDataEntryUI(tk.Tk):
         if os.path.isfile(prompt_sdxl_path):
             with open(prompt_sdxl_path, "r", encoding="utf-8") as f:
                 prompt_sdxl_content = f.read()
+        else:
+            self.debug_print(f"_add_asset_data('{base_name}'): missing {prompt_sdxl_path}")
         
         prompt_sdxl_neg_content = ""
         if os.path.isfile(prompt_sdxl_neg_path):
             with open(prompt_sdxl_neg_path, "r", encoding="utf-8") as f:
                 prompt_sdxl_neg_content = f.read()
+        else:
+            self.debug_print(f"_add_asset_data('{base_name}'): missing {prompt_sdxl_neg_path}")
 
         prompt_sd15_content = ""
         if os.path.isfile(prompt_sd15_path):
             with open(prompt_sd15_path, "r", encoding="utf-8") as f:
                 prompt_sd15_content = f.read()
+        else:
+            self.debug_print(f"_add_asset_data('{base_name}'): missing {prompt_sd15_path}")
         
         prompt_sd15_neg_content = ""
         if os.path.isfile(prompt_sd15_neg_path):
             with open(prompt_sd15_neg_path, "r", encoding="utf-8") as f:
                 prompt_sd15_neg_content = f.read()
+        else:
+            self.debug_print(f"_add_asset_data('{base_name}'): missing {prompt_sd15_neg_path}")
 
         prompt_flux_content = ""
         if os.path.isfile(prompt_flux_path):
             with open(prompt_flux_path, "r", encoding="utf-8") as f:
                 prompt_flux_content = f.read()
+        else:
+            self.debug_print(f"_add_asset_data('{base_name}'): missing {prompt_flux_path}")
 
         prompt_video_content = ""
         if os.path.isfile(prompt_video_path):
             with open(prompt_video_path, "r", encoding="utf-8") as f:
                 prompt_video_content = f.read()
+        else:
+            self.debug_print(f"_add_asset_data('{base_name}'): missing {prompt_video_path}")
 
         prompt_florence_content = ""
         if os.path.isfile(prompt_florence_path):
             with open(prompt_florence_path, "r", encoding="utf-8") as f:
                 prompt_florence_content = f.read()
+        else:
+            self.debug_print(f"_add_asset_data('{base_name}'): missing {prompt_florence_path}")
 
         self.assets_data.append({
             "base_name": base_name,
@@ -860,7 +1071,7 @@ class AssetDataEntryUI(tk.Tk):
         else:
             self.active_preview_label.config(image="")
 
-        # Update copy-to options (hide current field)
+        # Update copy-to options 
         available = [(label, key) for label, key in self.copy_to_options if key != md_key]
         menu = self.copy_to_menu["menu"]
         menu.delete(0, "end")
@@ -925,7 +1136,7 @@ class AssetDataEntryUI(tk.Tk):
             f.write(content)
 
         # Update the main table's text widget for the target field if visible
-        # Try to find the widget: loop through items_frame children for this asset and key
+        # Try to find the widget: loop through items_frame for this asset and key
         if hasattr(self, 'items_frame'):
             for row in self.items_frame.winfo_children():
                 # Find the row for this asset

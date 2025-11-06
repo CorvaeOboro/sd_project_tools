@@ -12,11 +12,39 @@ class OBOROTextToTextSafeForFilename:
       - Truncating length if needed
     """
 
+DIRECT_REPLACEMENTS = {
+    " ": "_",
+    "\n": "_",
+    "\r": "_",
+    "(": "_",
+    ")": "_",
+    ":": "_",
+    "<": "_",
+    ">": "_",  
+    "\\": "_",
+    "/": "_",
+    "*": "_",
+    "?": "_",
+    "\"": "_",
+    "|": "_",
+    "-": "_",
+}
+
+# ---- BAD FILENAME CHARACTERS & CATEGORIES ----
+BAD_FILENAME_CHAR_SET = set([
+    '\\', '/', ':', '*', '?', '"', '<', '>', '|', '@', '~', '`', '^', '=', '+', '[', ']', '{', '}', '(', ')', ';', ',',
+    '…', '–', '—', '•', '“', '”', '‘', '’', '′', '″', '‽', '†', '‡', '∑', '∯', '∫', '∉', '∈', '∋', '∂', '∇', '∩', '∪', '∧', '∨', '∃', '∄', '∅', '∏', '−', '∓', '∔', '∗', '∘', '√', '∞', '∟', '∠', '∡', '∢', '∣', '∤', '∥', '∦', '∧', '∨', '∩', '∪', '∫', '∬', '∭', '∮', '∯', '∰', '∱', '∲', '∳', '∴', '∵', '∶', '∷', '∸', '∹', '∺', '∻', '∼', '∽', '∾', '≁', '≃', '≄', '≅', '≆', '≇', '≈', '≉', '≊', '≋', '≌', '≍', '≎', '≏', '≐', '≑', '≒', '≓', '≔', '≕', '≖', '≗', '≘', '≙', '≚', '≛', '≜', '≝', '≞', '≟', '≠', '≡', '≢', '≣', '≤', '≥', '≦', '≧', '≨', '≩', '≪', '≫', '≬', '≭', '≮', '≯', '≰', '≱', '≲', '≳', '≴', '≵', '≶', '≷', '≸', '≹', '≺', '≻', '≼', '≽', '≾', '≿', '⊀', '⊁', '⊂', '⊃', '⊄', '⊅', '⊆', '⊇', '⊈', '⊉', '⊊', '⊋', '⊌', '⊍', '⊎', '⊏', '⊐', '⊑', '⊒', '⊓', '⊔', '⊕', '⊖', '⊗', '⊘', '⊙', '⊚', '⊛', '⊜', '⊝', '⊞', '⊟', '⊠', '⊡', '⊢', '⊣', '⊤', '⊥', '⊦', '⊧', '⊨', '⊩', '⊪', '⊫', '⊬', '⊭', '⊮', '⊯', '⊰', '⊱', '⊲', '⊳', '⊴', '⊵', '⊶', '⊷', '⊸', '⊹', '⊺', '⊻', '⊼', '⊽', '⊾', '⊿', '⋀', '⋁', '⋂', '⋃', '⋄', '⋅', '⋆', '⋇', '⋈', '⋉', '⋊', '⋋', '⋌', '⋍', '⋎', '⋏', '⋐', '⋑', '⋒', '⋓', '⋔', '⋕', '⋖', '⋗', '⋘', '⋙', '⋚', '⋛', '⋜', '⋝', '⋞', '⋟', '⋠', '⋡', '⋢', '⋣', '⋤', '⋥', '⋦', '⋧', '⋨', '⋩', '⋪', '⋫', '⋬', '⋭', '⋮', '⋯', '⋰', '⋱', '⋲', '⋳', '⋴', '⋵', '⋶', '⋷', '⋸', '⋹', '⋺', '⋻', '⋼', '⋽', '⋾', '⋿', '⌀', '⌁', '⌂', '⌃', '⌄', '⌅', '⌆', '⌇', '⌈', '⌉', '⌊', '⌋', '⌌', '⌍', '⌎', '⌏', '⌐', '⌑', '⌒', '⌓', '⌔', '⌕', '⌖', '⌗', '⌘', '⌙', '⌚', '⌛', '⌜', '⌝', '⌞', '⌟', '⌠', '⌡', '⌢', '⌣', '⌤', '⌥', '⌦', '⌧', '⌨', '〈', '〉', '⌫', '⌬', '⌭', '⌮', '⌯', '⌰', '⌱', '⌲', '⌳', '⌴', '⌵', '⌶', '⌷', '⌸', '⌹', '⌺', '⌻', '⌼', '⌽', '⌾', '⌿', '⍀', '⍁', '⍂', '⍃', '⍄', '⍅', '⍆', '⍇', '⍈', '⍉', '⍊', '⍋', '⍌', '⍍', '⍎', '⍏', '⍐', '⍑', '⍒', '⍓', '⍔', '⍕', '⍖', '⍗', '⍘', '⍙', '⍚', '⍛', '⍜', '⍝', '⍞', '⍟', '⍠', '⍡', '⍢', '⍣', '⍤', '⍥', '⍦', '⍧', '⍨', '⍩', '⍪', '⍫', '⍬', '⍭', '⍮', '⍯', '⍰', '⍱', '⍲', '⍳', '⍴', '⍵', '⍶', '⍷', '⍸', '⍹', '⍺', '⍻', '⍼', '⍽', '⍾', '⍿', '⎀', '⎁', '⎂', '⎃', '⎄', '⎅', '⎆', '⎇', '⎈', '⎉', '⎊', '⎋', '⎌', '⎍', '⎎', '⎏', '⎐', '⎑', '⎒', '⎓', '⎔', '⎕', '⎖', '⎗', '⎘', '⎙', '⎚', '⎛', '⎜', '⎝', '⎞', '⎟', '⎠', '⎡', '⎢', '⎣', '⎤', '⎥', '⎦', '⎧', '⎨', '⎩', '⎪', '⎫', '⎬', '⎭', '⎮', '⎯', '⎰', '⎱', '⎲', '⎳', '⎴', '⎵', '⎶', '⎷', '⎸', '⎹', '⎺', '⎻', '⎼', '⎽', '⎾', '⎿', '⏀', '⏁', '⏂', '⏃', '⏄', '⏅', '⏆', '⏇', '⏈', '⏉', '⏊', '⏋', '⏌', '⏍', '⏎', '⏏', '⏐', '⏑', '⏒', '⏓', '⏔', '⏕', '⏖', '⏗', '⏘', '⏙', '⏚', '⏛', '⏜', '⏝', '⏞', '⏟', '⏠', '⏡', '⏢', '⏣', '⏤', '⏥', '⏦', '⏧', '⏨', '⏩', '⏪', '⏫', '⏬', '⏭', '⏮', '⏯', '⏰', '⏱', '⏲', '⏳', '⏴', '⏵', '⏶', '⏷', '⏸', '⏹', '⏺', '⏻', '⏼', '⏽', '⏾', '⏿'
+])
+BAD_UNICODE_CATEGORIES = ("C", "M", "S", "P")
+
+
+class OBOROTextToTextSafeForFilename:
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
                 "string_in": ("STRING",),
+                "max_length": ("INT", {"default": 150, "min": 1, "max": 250}),
             },
         }
 
@@ -26,30 +54,10 @@ class OBOROTextToTextSafeForFilename:
     DESCRIPTION = "Converts a text input into a filename-safe variant."
 
     # ---- CONFIGURATIONS ----
-    # Characters to replace with underscore
-    direct_replacements = {
-        " ": "_",
-        "\n": "_",
-        "\r": "_",
-        "(": "_",
-        ")": "_",
-        ":": "_",
-        "<": "_",
-        ">": "_",  
-        "\\": "_",
-        "/": "_",
-        "*": "_",
-        "?": "_",
-        "\"": "_",
-        "|": "_",
-        "-": "_",
-        # ... add more if needed
-    }
-
-    # Characters to remove outright
+    # Characters to remove outright , no comma , no apostrophe
     remove_characters = [
         ",",
-        # If you want to remove additional punctuation, do so here
+        "'",
     ]
 
     # Reserved Windows filenames
@@ -61,16 +69,13 @@ class OBOROTextToTextSafeForFilename:
         "lpt6", "lpt7", "lpt8", "lpt9",
     }
 
-    # Maximum length for safety
-    MAX_LENGTH = 150  # you can set to 255 or other desired limit
+    def process_string(self, string_in, max_length=150):
 
-    def process_string(self, string_in):
-
-        # (Optional) Normalize Unicode to decompose accents, etc.
+        # Normalize Unicode to decompose accents
         string_in = unicodedata.normalize("NFKD", string_in)
         
         # Step A: Direct replacements
-        for original_char, replacement_char in self.direct_replacements.items():
+        for original_char, replacement_char in self.DIRECT_REPLACEMENTS.items():
             string_in = string_in.replace(original_char, replacement_char)
 
         # Step B: Remove specifically designated characters
@@ -82,6 +87,9 @@ class OBOROTextToTextSafeForFilename:
         control_chars = ''.join(chr(c) for c in range(32)) + chr(127)
         for cc in control_chars:
             string_in = string_in.replace(cc, "")
+
+        # Step D: Remove or replace problematic Unicode/symbol characters
+        string_in = remove_bad_filename_chars(string_in)
 
         # 2) Remove all punctuation except underscore
         punctuation_without_underscore = "".join(
@@ -100,9 +108,9 @@ class OBOROTextToTextSafeForFilename:
         if string_in.lower() in self.reserved_names:
             string_in = string_in + "_0"
 
-        # Step G: Enforce maximum length
-        if len(string_in) > self.MAX_LENGTH:
-            string_in = string_in[:self.MAX_LENGTH]
+        # Step G: Truncate to max length
+        if len(string_in) > max_length:
+            string_in = string_in[:max_length]
 
         # If after everything it's empty, give it a default name
         if not string_in:
@@ -110,6 +118,18 @@ class OBOROTextToTextSafeForFilename:
 
         return (string_in,)
 
+    def is_bad_char(self,c):
+        cat = unicodedata.category(c)
+        if c in BAD_FILENAME_CHAR_SET:
+            return True
+        if cat.startswith(BAD_UNICODE_CATEGORIES):
+            return True
+        if ord(c) > 127:
+            return True
+        return False
+
+    def remove_bad_filename_chars(self,s):
+        return ''.join(c for c in s if not self.is_bad_char(c))
 
 # Register the node
 NODE_CLASS_MAPPINGS = {

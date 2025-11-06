@@ -5,7 +5,7 @@ actions : organize > moving selected files in explorer to a targeted folder by v
 actions : archive > copy selected files to a "backup" folder in the same directory 
 actions : 01 or 02 > move selected files to a folder named 01 or 02 in the same directory used for rating
 actions : hotkey > trigger a hotkey 
-JSON stores the different actions and their parameters 'audio_hotkey_organizer.json'
+JSON stores the different actions and their parameters 'voice_action_organizer.json'
 by default all actioned files are stored to BACKUP folder 
 
 this uses a local offline vosk model for speech recognition 
@@ -46,7 +46,7 @@ import webbrowser  # For opening URLs
 # GLOBAL SETTINGS ===========================================================
 # Ensure JSON is stored alongside this script, not relative to current working directory
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-JSON_DATA = os.path.join(SCRIPT_DIR, 'audio_hotkey_organizer.json')
+JSON_DATA = os.path.join(SCRIPT_DIR, 'voice_action_organizer.json')
 recognition_timeout = 3  # Default timeout in seconds
 MATCH_THRESHOLD = 0.7  # Minimum similarity score to consider a match
 AUDIO_LEVELS = queue.Queue(maxsize=10)  # Queue to hold recent audio levels

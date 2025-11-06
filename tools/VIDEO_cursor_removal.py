@@ -13,13 +13,14 @@ in this example we can provide some example images of the gauntlet  images as gu
 
 TODO:
 add temporal confidence , we know the mouse likely wont jump across the screen unless scene change
-add guidance confidence ( extremely high ) if the user has corrected the detection its value ofbecomes very high 
+add guidance confidence ( extremely high ) if the user has corrected the detection
 include the recording of frames where no cursor was detected as its own classification , so it doesnt always compute non detected frames
 decrease confidence of detection when near marked good frames , more likely a flase positive if we know the cursor wasnt seen recently 
 add a re view toggle to each pass , so for example we can flag poorly inpainted frames that need to be replaced , 
-for each scene that has static background , we could predict the highest unchanged pixel across frames , this is good for   
+for each scene that has static background , we could predict the highest unchanged pixel across frames ,
 
-VERSION::20250911
+STATUS:: work in progress , currently very slow requires many guidance images and corrections , also replacement is bad in motion
+VERSION::20251002
 """
 
 import os
@@ -35,7 +36,7 @@ from tkinter import ttk, filedialog
 from PIL import Image, ImageTk
 import json
 
-# ===================== Global UI theme variables =====================
+
 UI_BG = "#0b0b0b"
 PANEL_BG = "#1a1a1a"
 TEXT_FG = "#dcdcdc"
@@ -47,7 +48,7 @@ HEADER_GREEN = "#52c41a"
 HEADER_PURPLE = "#9254de"
 HEADER_FONT = ("Segoe UI", 14, "bold")
 
-# =============== Logging helpers ===============
+
 class OutputMultiplexer:
     """
     Multiplex writes to multiple output streams, e.g., a Tkinter Text widget and a file/console.
