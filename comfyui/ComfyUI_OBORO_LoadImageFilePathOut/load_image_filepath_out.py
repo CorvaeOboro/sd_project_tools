@@ -37,7 +37,10 @@ class OBOROLoadImageFilePathOut:
     DESCRIPTION = "Loads an image from a specified file path string and outputs the image, mask, file name, and folder path."
     
     def load_image(self, image):
+        print(f"[LoadImageFilePathOut] Input image string: '{image}'")
         image_path = OBOROLoadImageFilePathOut._resolve_path(image)
+        print(f"[LoadImageFilePathOut] Resolved path: '{image_path}'")
+        print(f"[LoadImageFilePathOut] Path exists: {image_path.exists()}")
 
         i = Image.open(image_path)
         i = ImageOps.exif_transpose(i)
@@ -57,8 +60,36 @@ class OBOROLoadImageFilePathOut:
 
     @staticmethod
     def _resolve_path(image) -> Path:
-        image_path = Path(folder_paths.get_annotated_filepath(image))
-        return image_path
+        print(f"[LoadImageFilePathOut._resolve_path] Input: '{image}' (type: {type(image)})")
+        
+        # If input is already a valid path, use it directly
+        if isinstance(image, (str, Path)):
+            direct_path = Path(image)
+            if direct_path.exists() and direct_path.is_file():
+                print(f"[LoadImageFilePathOut._resolve_path] Input is valid file path, using directly: '{direct_path}'")
+                return direct_path
+        
+        # Otherwise use ComfyUI's annotation system
+        try:
+            annotated = folder_paths.get_annotated_filepath(image)
+            print(f"[LoadImageFilePathOut._resolve_path] After get_annotated_filepath: '{annotated}'")
+            image_path = Path(annotated)
+            print(f"[LoadImageFilePathOut._resolve_path] Final Path object: '{image_path}'")
+            
+            # Verify the path exists
+            if not image_path.exists():
+                print(f"[LoadImageFilePathOut._resolve_path] WARNING: Resolved path does not exist!")
+                print(f"[LoadImageFilePathOut._resolve_path] Trying to use input directly as fallback...")
+                fallback_path = Path(image)
+                if fallback_path.exists():
+                    print(f"[LoadImageFilePathOut._resolve_path] Fallback successful: '{fallback_path}'")
+                    return fallback_path
+            
+            return image_path
+        except Exception as e:
+            print(f"[LoadImageFilePathOut._resolve_path] Error with get_annotated_filepath: {e}")
+            print(f"[LoadImageFilePathOut._resolve_path] Using input directly as Path")
+            return Path(image)
 
     @classmethod
     def IS_CHANGED(s, image):

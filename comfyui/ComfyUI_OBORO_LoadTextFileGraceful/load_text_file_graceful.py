@@ -93,13 +93,9 @@ class OBOROLoadTextFileGraceful:
         # Return the text,  and status label
         return text_output, status
 
-
-# ComfyUI needs to know which classes to load when scanning your .py file
 NODE_CLASS_MAPPINGS = {
-    "OBOROLoadTextFileGraceful": OBOROLoadTextFileGraceful,
+    "OBOROLoadTextFileGraceful": OBOROLoadTextFileGraceful, # ComfyUI needs to know which classes to load when scanning your .py file
 }
-
-# Provide a human-readable display name for your node
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "OBOROLoadTextFileGraceful": "Load Text File Graceful",
+    "OBOROLoadTextFileGraceful": "Load Text File Graceful", # Provide a human-readable display name for your node
 }

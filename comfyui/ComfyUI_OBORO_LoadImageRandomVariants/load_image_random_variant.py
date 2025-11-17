@@ -145,31 +145,52 @@ class OBOROLoadImageRandomVariant:
         # Variant selection logic
         chosen = None
         variant_index_used = None
+        
+        print(f"[load_image] Variant selection: variants count={len(variants)}, override={variant_index_override}")
+        
         # 1. If override is set and valid, use it (1-based index for UI friendliness)
         if variant_index_override is not None and variant_index_override > 0:
             idx = variant_index_override - 1
+            print(f"[load_image] Override mode: index={variant_index_override}, array_index={idx}, variants_len={len(variants)}")
             if 0 <= idx < len(variants):
                 chosen = variants[idx]
                 variant_index_used = idx + 1
+                print(f"[load_image] Override: Selected variant at index {variant_index_override}: {chosen}")
                 self.debug_print(debug_mode, f"  Override: Using variant index {variant_index_override} (file: {chosen})")
             else:
+                print(f"[load_image] Override index {variant_index_override} out of range (0-{len(variants)-1})")
                 self.debug_print(debug_mode, f"  WARNING: variant_index_override={variant_index_override} is out of range. Falling back to random selection.")
         # 2. Else pick randomly, always seeded for reproducibility
         if chosen is None and variants:
+            print(f"[load_image] Random selection mode (chosen is None, variants exist)")
             self.debug_print(debug_mode, f"  Using seed: {seed} for random selection.")
             chosen = random.choice(variants)
             variant_index_used = variants.index(chosen) + 1
+            print(f"[load_image] Randomly selected: {chosen}")
             self.debug_print(debug_mode, f"  Randomly chose variant: {chosen} (index {variant_index_used})")
-        elif not variants and base.exists():
+        elif chosen is None and not variants and base.exists():
             # This branch should never be hit now, but keep for safety
+            print(f"[load_image] Fallback: No variants, using base image")
             chosen = base
             variant_index_used = 0
             self.debug_print(debug_mode, f"  No variants found. Using base image: {chosen}")
-        else:
+        
+        print(f"[load_image] After selection: chosen={chosen}, type={type(chosen)}")
+        
+        if chosen is None:
             # No valid image found: raise clear error
             msg = f"No valid base image or variant found for base: '{base}'. Please check your folder, filename, extension, and variant_suffixes settings."
+            print(f"[load_image] ERROR: {msg}")
             self.debug_print(debug_mode, f"  ERROR: {msg}")
             raise FileNotFoundError(msg)
+        
+        # Verify chosen file exists before trying to open it
+        if not chosen.exists():
+            msg = f"Selected image file does not exist: '{chosen}'. File was in variants list but cannot be accessed."
+            self.debug_print(debug_mode, f"  ERROR: {msg}")
+            raise FileNotFoundError(msg)
+        
+        self.debug_print(debug_mode, f"  Opening image file: {chosen}")
         i = Image.open(chosen)
         self.debug_print(debug_mode, f"  Opened image: {chosen}")
         i = ImageOps.exif_transpose(i)

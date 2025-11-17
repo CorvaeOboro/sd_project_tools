@@ -1,4 +1,4 @@
-name: SD_PROJECT_TOOLS
+name: DIFFUSION_PROJECT_TOOLS
 channels:
   - defaults
 dependencies:
