@@ -54,6 +54,7 @@ VERSION::20251029
 import os
 import tkinter as tk
 from tkinter import ttk
+import tkinter.font as tkfont
 from PIL import Image, ImageTk
 import re
 from PIL import Image
@@ -185,34 +186,11 @@ class AssetDataEntryUI(tk.Tk):
         # -------------------------------
         # Header row 
         # -------------------------------
-        header_frame = ttk.Frame(self)
-        header_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
-
-        # Empty space for image column
-        hdr_preview = ttk.Label(header_frame, text="", anchor="center", width=20)
-        hdr_preview.grid(row=0, column=0, padx=(5,10))
-
-        # Headers for text fields
-        hdr_sdxl_pos = ttk.Label(header_frame, text="SDXL Positive", anchor="center", width=25)
-        hdr_sdxl_pos.grid(row=0, column=1, padx=(0,30))
-
-        hdr_sdxl_neg = ttk.Label(header_frame, text="SDXL Negative", anchor="center", width=25)
-        hdr_sdxl_neg.grid(row=0, column=2, padx=(0,30))
-
-        hdr_sd15_pos = ttk.Label(header_frame, text="SD15 Positive", anchor="center", width=25)
-        hdr_sd15_pos.grid(row=0, column=3, padx=(0,30))
-
-        hdr_sd15_neg = ttk.Label(header_frame, text="SD15 Negative", anchor="center", width=25)
-        hdr_sd15_neg.grid(row=0, column=4, padx=(0,30))
-
-        hdr_flux = ttk.Label(header_frame, text="Flux", anchor="center", width=25)
-        hdr_flux.grid(row=0, column=5, padx=(0,30))
-
-        hdr_video = ttk.Label(header_frame, text="Video", anchor="center", width=25)
-        hdr_video.grid(row=0, column=6, padx=(0,30))
-
-        hdr_florence = ttk.Label(header_frame, text="Florence", anchor="center", width=25)
-        hdr_florence.grid(row=0, column=7, padx=(0,30))
+        self.table_preview_minsize_px = 150
+        self.table_text_width_chars = 25
+        self.table_text_padx = 0
+        self.table_text_font = tkfont.nametofont("TkDefaultFont")
+        self.table_text_col_minsize_px = int(self.table_text_font.measure("0" * self.table_text_width_chars))
 
         # -------------------------------
         # Main content area with split view
@@ -223,6 +201,36 @@ class AssetDataEntryUI(tk.Tk):
         # Left side (scrollable list)
         self.container_frame = ttk.Frame(main_content)
         self.container_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        header_frame = ttk.Frame(self.container_frame)
+        header_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+        header_frame.grid_columnconfigure(0, minsize=self.table_preview_minsize_px)
+        for col in range(1, 8):
+            header_frame.grid_columnconfigure(col, minsize=self.table_text_col_minsize_px, uniform="prompt_cols")
+
+        hdr_preview = ttk.Label(header_frame, text="", anchor="center", width=20)
+        hdr_preview.grid(row=0, column=0, padx=(5, 10))
+
+        hdr_sdxl_pos = ttk.Label(header_frame, text="SDXL Positive", anchor="center")
+        hdr_sdxl_pos.grid(row=0, column=1, padx=0, sticky="ew")
+
+        hdr_sdxl_neg = ttk.Label(header_frame, text="SDXL Negative", anchor="center")
+        hdr_sdxl_neg.grid(row=0, column=2, padx=0, sticky="ew")
+
+        hdr_sd15_pos = ttk.Label(header_frame, text="SD15 Positive", anchor="center")
+        hdr_sd15_pos.grid(row=0, column=3, padx=0, sticky="ew")
+
+        hdr_sd15_neg = ttk.Label(header_frame, text="SD15 Negative", anchor="center")
+        hdr_sd15_neg.grid(row=0, column=4, padx=0, sticky="ew")
+
+        hdr_flux = ttk.Label(header_frame, text="Flux", anchor="center")
+        hdr_flux.grid(row=0, column=5, padx=0, sticky="ew")
+
+        hdr_video = ttk.Label(header_frame, text="Video", anchor="center")
+        hdr_video.grid(row=0, column=6, padx=0, sticky="ew")
+
+        hdr_florence = ttk.Label(header_frame, text="Florence", anchor="center")
+        hdr_florence.grid(row=0, column=7, sticky="ew")
 
         self.canvas = tk.Canvas(self.container_frame, bg="black", highlightthickness=0)
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -888,26 +896,34 @@ class AssetDataEntryUI(tk.Tk):
             content_container = ttk.Frame(row_frame)
             content_container.grid(row=1, column=0, columnspan=8, sticky="ew", pady=2)
 
+            content_container.grid_columnconfigure(0, minsize=self.table_preview_minsize_px)
+            content_container.grid_columnconfigure(1, weight=1)
+
+            thumb_container = ttk.Frame(content_container)
+            thumb_container.grid(row=0, column=0, padx=(5, 10), pady=2, sticky="nw")
+
             # Thumbnail on the left
             if asset["png_path"] and os.path.isfile(asset["png_path"]):
                 try:
                     img = Image.open(asset["png_path"])
                     img.thumbnail((128, 128), Image.LANCZOS)
                     photo = ImageTk.PhotoImage(img)
-                    label_img = ttk.Label(content_container, image=photo)
+                    label_img = ttk.Label(thumb_container, image=photo)
                     label_img.image = photo  # keep reference
-                    label_img.grid(row=0, column=0, padx=(5,10), pady=2, sticky="nw")
+                    label_img.grid(row=0, column=0, sticky="nw")
                 except Exception as e:
                     print(f"Error loading image {asset['png_path']}: {e}")
 
             # Content frame for text fields to the right of the image
             content_frame = ttk.Frame(content_container)
             content_frame.grid(row=0, column=1, sticky="ew")
+            for col in range(0, 7):
+                content_frame.grid_columnconfigure(col, minsize=self.table_text_col_minsize_px, uniform="prompt_cols")
 
             # SDXL Positive prompt - slight green tint
-            prompt_text_sdxl = tk.Text(content_frame, width=25, height=6, bg="#2a332a", fg="white")
+            prompt_text_sdxl = tk.Text(content_frame, width=25, height=6, bg="#2a332a", fg="white", font=self.table_text_font)
             prompt_text_sdxl.insert("1.0", asset["prompt_sdxl_content"])
-            prompt_text_sdxl.grid(row=0, column=0, sticky="w", padx=0, pady=1)
+            prompt_text_sdxl.grid(row=0, column=0, sticky="nsew", padx=0, pady=1)
             prompt_text_sdxl.bind("<KeyRelease>", 
                 lambda e, a=asset, tw=prompt_text_sdxl, key="sdxl_pos": 
                     self.on_text_change(a, tw, key)
@@ -918,9 +934,9 @@ class AssetDataEntryUI(tk.Tk):
             )
 
             # SDXL Negative prompt - slight red tint
-            neg_prompt_text_sdxl = tk.Text(content_frame, width=25, height=6, bg="#332a2a", fg="white")
+            neg_prompt_text_sdxl = tk.Text(content_frame, width=25, height=6, bg="#332a2a", fg="white", font=self.table_text_font)
             neg_prompt_text_sdxl.insert("1.0", asset["prompt_sdxl_neg_content"])
-            neg_prompt_text_sdxl.grid(row=0, column=1, sticky="w", padx=0, pady=1)
+            neg_prompt_text_sdxl.grid(row=0, column=1, sticky="nsew", padx=0, pady=1)
             neg_prompt_text_sdxl.bind("<KeyRelease>",
                 lambda e, a=asset, tw=neg_prompt_text_sdxl, key="sdxl_neg":
                     self.on_text_change(a, tw, key)
@@ -931,9 +947,9 @@ class AssetDataEntryUI(tk.Tk):
             )
 
             # SD15 Positive prompt - slight green tint
-            prompt_text_sd15 = tk.Text(content_frame, width=25, height=6, bg="#2a332a", fg="white")
+            prompt_text_sd15 = tk.Text(content_frame, width=25, height=6, bg="#2a332a", fg="white", font=self.table_text_font)
             prompt_text_sd15.insert("1.0", asset["prompt_sd15_content"])
-            prompt_text_sd15.grid(row=0, column=2, sticky="w", padx=0, pady=1)
+            prompt_text_sd15.grid(row=0, column=2, sticky="nsew", padx=0, pady=1)
             prompt_text_sd15.bind("<KeyRelease>",
                 lambda e, a=asset, tw=prompt_text_sd15, key="sd15_pos":
                     self.on_text_change(a, tw, key)
@@ -944,9 +960,9 @@ class AssetDataEntryUI(tk.Tk):
             )
 
             # SD15 Negative prompt - slight red tint
-            neg_prompt_text_sd15 = tk.Text(content_frame, width=25, height=6, bg="#332a2a", fg="white")
+            neg_prompt_text_sd15 = tk.Text(content_frame, width=25, height=6, bg="#332a2a", fg="white", font=self.table_text_font)
             neg_prompt_text_sd15.insert("1.0", asset["prompt_sd15_neg_content"])
-            neg_prompt_text_sd15.grid(row=0, column=3, sticky="w", padx=0, pady=1)
+            neg_prompt_text_sd15.grid(row=0, column=3, sticky="nsew", padx=0, pady=1)
             neg_prompt_text_sd15.bind("<KeyRelease>",
                 lambda e, a=asset, tw=neg_prompt_text_sd15, key="sd15_neg":
                     self.on_text_change(a, tw, key)
@@ -957,9 +973,9 @@ class AssetDataEntryUI(tk.Tk):
             )
 
             # Flux prompt - neutral dark gray
-            prompt_text_flux = tk.Text(content_frame, width=25, height=6, bg="#2d2d2d", fg="white")
+            prompt_text_flux = tk.Text(content_frame, width=25, height=6, bg="#2d2d2d", fg="white", font=self.table_text_font)
             prompt_text_flux.insert("1.0", asset["prompt_flux_content"])
-            prompt_text_flux.grid(row=0, column=4, sticky="w", padx=0, pady=1)
+            prompt_text_flux.grid(row=0, column=4, sticky="nsew", padx=0, pady=1)
             prompt_text_flux.bind("<KeyRelease>",
                 lambda e, a=asset, tw=prompt_text_flux, key="flux":
                     self.on_text_change(a, tw, key)
@@ -970,9 +986,9 @@ class AssetDataEntryUI(tk.Tk):
             )
 
             # Video prompt - neutral dark gray
-            prompt_text_video = tk.Text(content_frame, width=25, height=6, bg="#2d2d2d", fg="white")
+            prompt_text_video = tk.Text(content_frame, width=25, height=6, bg="#2d2d2d", fg="white", font=self.table_text_font)
             prompt_text_video.insert("1.0", asset["prompt_video_content"])
-            prompt_text_video.grid(row=0, column=5, sticky="w", padx=0, pady=1)
+            prompt_text_video.grid(row=0, column=5, sticky="nsew", padx=0, pady=1)
             prompt_text_video.bind("<KeyRelease>",
                 lambda e, a=asset, tw=prompt_text_video, key="video":
                     self.on_text_change(a, tw, key)
@@ -983,9 +999,9 @@ class AssetDataEntryUI(tk.Tk):
             )
 
             # Florence prompt - neutral dark gray
-            prompt_text_florence = tk.Text(content_frame, width=25, height=6, bg="#2d2d2d", fg="white")
+            prompt_text_florence = tk.Text(content_frame, width=25, height=6, bg="#2d2d2d", fg="white", font=self.table_text_font)
             prompt_text_florence.insert("1.0", asset["prompt_florence_content"])
-            prompt_text_florence.grid(row=0, column=6, sticky="w", padx=0, pady=1)
+            prompt_text_florence.grid(row=0, column=6, sticky="nsew", padx=0, pady=1)
             prompt_text_florence.bind("<KeyRelease>",
                 lambda e, a=asset, tw=prompt_text_florence, key="florence":
                     self.on_text_change(a, tw, key)

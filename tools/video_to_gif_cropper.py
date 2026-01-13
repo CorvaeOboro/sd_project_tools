@@ -34,9 +34,9 @@ VIDEO_EXTENSIONS = (".mp4", ".avi", ".mov", ".mkv", ".webm")
 
 # Default settings
 DEFAULT_THRESHOLD = 0.002
-DEFAULT_DELAY_MS = 200
-DEFAULT_FIRST_DELAY_MS = 700
-DEFAULT_LAST_DELAY_MS = 700
+DEFAULT_DELAY_MS = 33
+DEFAULT_FIRST_DELAY_MS = 0
+DEFAULT_LAST_DELAY_MS = 0
 DEFAULT_GIF_COLORS = 256
 DEFAULT_GIF_OPTIMIZE = False
 DEFAULT_GIF_DITHER = False
@@ -121,10 +121,30 @@ class VideoToGifCropper:
         self.btn_next = ttk.Button(row1, text="⏭", width=4, style="Blue.TButton", command=self.next_frame)
         self.btn_next.grid(row=0, column=3, padx=4, pady=2)
 
-        ttk.Label(row1, text="Output:").grid(row=0, column=4, padx=(12, 4))
-        self.output_type = tk.StringVar(value="GIF")
-        ttk.Radiobutton(row1, text="GIF", value="GIF", variable=self.output_type).grid(row=0, column=5)
-        ttk.Radiobutton(row1, text="WebP", value="WEBP", variable=self.output_type).grid(row=0, column=6)
+        # Current position display
+        ttk.Label(row1, text="Current:").grid(row=0, column=4, padx=(12, 4))
+        self.lbl_current_time = ttk.Label(row1, text="0.000s")
+        self.lbl_current_time.grid(row=0, column=5, sticky=tk.W)
+
+        # Start/End time controls
+        ttk.Label(row1, text="Start:").grid(row=0, column=6, padx=(12, 2))
+        self.start_time_var = tk.DoubleVar(value=0.0)
+        self.entry_start = ttk.Entry(row1, width=7, textvariable=self.start_time_var)
+        self.entry_start.grid(row=0, column=7, sticky=tk.W, padx=2)
+        self.btn_set_start = ttk.Button(row1, text="Set START", style="Blue.TButton", command=self.set_start_from_current)
+        self.btn_set_start.grid(row=0, column=8, padx=2, pady=2)
+
+        ttk.Label(row1, text="End:").grid(row=0, column=9, padx=(8, 2))
+        self.end_time_var = tk.DoubleVar(value=0.0)
+        self.entry_end = ttk.Entry(row1, width=7, textvariable=self.end_time_var)
+        self.entry_end.grid(row=0, column=10, sticky=tk.W, padx=2)
+        self.btn_set_end = ttk.Button(row1, text="Set END", style="Blue.TButton", command=self.set_end_from_current)
+        self.btn_set_end.grid(row=0, column=11, padx=2, pady=2)
+
+        ttk.Label(row1, text="Output:").grid(row=0, column=12, padx=(12, 4))
+        self.output_type = tk.StringVar(value="WEBP")
+        ttk.Radiobutton(row1, text="GIF", value="GIF", variable=self.output_type).grid(row=0, column=13)
+        ttk.Radiobutton(row1, text="WebP", value="WEBP", variable=self.output_type).grid(row=0, column=14)
 
         # Buttons row 2 - similarity + timing
         row2 = ttk.Frame(controls)
@@ -148,16 +168,16 @@ class VideoToGifCropper:
         self.lbl_kept = ttk.Label(row2, text="Kept frames: -")
         self.lbl_kept.grid(row=0, column=3, padx=6)
 
-        # Timing settings
+        # Timing settings (OPTIONAL overrides)
         self.use_total_time = tk.BooleanVar(value=False)
-        self.chk_total_time = ttk.Checkbutton(row2, text="Target total time (s)", variable=self.use_total_time, command=self.on_timing_mode_changed)
+        self.chk_total_time = ttk.Checkbutton(row2, text="[OPTIONAL] Target total time (s)", variable=self.use_total_time, command=self.on_timing_mode_changed)
         self.chk_total_time.grid(row=1, column=0, sticky=tk.W, pady=(6, 0))
 
         self.total_time_var = tk.DoubleVar(value=3.0)
         self.entry_total_time = ttk.Entry(row2, width=8, textvariable=self.total_time_var)
         self.entry_total_time.grid(row=1, column=1, sticky=tk.W, padx=6, pady=(6, 0))
 
-        ttk.Label(row2, text="Or delay per frame (ms):").grid(row=1, column=2, sticky=tk.E, pady=(6, 0))
+        ttk.Label(row2, text="[OPTIONAL] Or delay per frame (ms):").grid(row=1, column=2, sticky=tk.E, pady=(6, 0))
         self.delay_ms_var = tk.IntVar(value=int(DEFAULT_DELAY_MS))
         self.entry_delay = ttk.Entry(row2, width=8, textvariable=self.delay_ms_var)
         self.entry_delay.grid(row=1, column=3, sticky=tk.W, padx=6, pady=(6, 0))
@@ -172,18 +192,15 @@ class VideoToGifCropper:
         self.btn_export = ttk.Button(row3, text="Export GIF/WebP", style="Purple.TButton", command=self.export_animation)
         self.btn_export.grid(row=0, column=1, padx=4, pady=2)
 
-        # Row 4 - Start/End time controls
+        # Checkbox for center guide lines
+        self.show_center_guides = tk.BooleanVar(value=True)
+        self.chk_center_guides = ttk.Checkbutton(row3, text="Show center guides", variable=self.show_center_guides, command=self.on_center_guides_changed)
+        self.chk_center_guides.grid(row=0, column=2, padx=(12, 4), pady=2)
+
+        # Row 4 - Note about range
         row4 = ttk.Frame(controls)
         row4.pack(side=tk.TOP, fill=tk.X, padx=6, pady=(0, 6))
-        ttk.Label(row4, text="Start (s):").grid(row=0, column=0, sticky=tk.W)
-        self.start_time_var = tk.DoubleVar(value=0.0)
-        self.entry_start = ttk.Entry(row4, width=8, textvariable=self.start_time_var)
-        self.entry_start.grid(row=0, column=1, sticky=tk.W, padx=(2, 8))
-        ttk.Label(row4, text="End (s):").grid(row=0, column=2, sticky=tk.W)
-        self.end_time_var = tk.DoubleVar(value=0.0)
-        self.entry_end = ttk.Entry(row4, width=8, textvariable=self.end_time_var)
-        self.entry_end.grid(row=0, column=3, sticky=tk.W, padx=(2, 8))
-        ttk.Label(row4, text="(Only this range is analyzed/exported)").grid(row=0, column=4, sticky=tk.W)
+        ttk.Label(row4, text="Note: Only the Start-End range is analyzed/exported. By default, timing matches original video FPS.").grid(row=0, column=0, sticky=tk.W)
 
         self.status_label = ttk.Label(controls, text="Open a video to begin.")
         self.status_label.pack(side=tk.LEFT, padx=8, pady=4)
@@ -208,6 +225,8 @@ class VideoToGifCropper:
         self.crop_rect = None  # (x0, y0, x1, y1)
         self.drag_start = None  # canvas coords
         self.canvas_rect_id = None
+        self.canvas_guide_h_id = None  # horizontal center guide line
+        self.canvas_guide_v_id = None  # vertical center guide line
 
         # Bind canvas mouse for marquee selection
         self.canvas.bind("<ButtonPress-1>", self.on_canvas_press)
@@ -222,14 +241,14 @@ class VideoToGifCropper:
         self.entry_end.bind("<Return>", self.on_time_changed)
         self.entry_end.bind("<FocusOut>", self.on_time_changed)
 
-        # Row 5 - First/Last frame delay overrides
+        # Row 5 - First/Last frame delay overrides (OPTIONAL)
         row5 = ttk.Frame(controls)
         row5.pack(side=tk.TOP, fill=tk.X, padx=6, pady=(0, 6))
-        ttk.Label(row5, text="First frame delay (ms):").grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(row5, text="[OPTIONAL] First frame extra delay (ms):").grid(row=0, column=0, sticky=tk.W)
         self.first_delay_ms_var = tk.IntVar(value=int(DEFAULT_FIRST_DELAY_MS))
         self.entry_first_delay = ttk.Entry(row5, width=8, textvariable=self.first_delay_ms_var)
         self.entry_first_delay.grid(row=0, column=1, sticky=tk.W, padx=(2, 8))
-        ttk.Label(row5, text="Last frame delay (ms):").grid(row=0, column=2, sticky=tk.W)
+        ttk.Label(row5, text="[OPTIONAL] Last frame extra delay (ms):").grid(row=0, column=2, sticky=tk.W)
         self.last_delay_ms_var = tk.IntVar(value=int(DEFAULT_LAST_DELAY_MS))
         self.entry_last_delay = ttk.Entry(row5, width=8, textvariable=self.last_delay_ms_var)
         self.entry_last_delay.grid(row=0, column=3, sticky=tk.W, padx=(2, 8))
@@ -263,6 +282,7 @@ class VideoToGifCropper:
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
         self.current_frame_index = frame_num
         self.show_frame()
+        self.update_current_time_label()
         self.draw_range_overlay()
 
     def on_scrub_start(self, _evt):
@@ -316,6 +336,7 @@ class VideoToGifCropper:
         self.current_frame_index = idx
         self.timeline_scale.set(idx)
         self.show_frame()
+        self.update_current_time_label()
 
     def next_frame(self):
         if not self.cap:
@@ -325,6 +346,7 @@ class VideoToGifCropper:
         self.current_frame_index = idx
         self.timeline_scale.set(idx)
         self.show_frame()
+        self.update_current_time_label()
 
     def open_video(self):
         path = filedialog.askopenfilename(title="Select video", filetypes=[("Video", "*.mp4 *.avi *.mov *.mkv *.webm"), ("All", "*.*")])
@@ -437,6 +459,7 @@ class VideoToGifCropper:
                 self.show_frame(frame)
             if self.frame_count > 0:
                 self.timeline_scale.set(self.current_frame_index)
+            self.update_current_time_label()
             self.draw_range_overlay()
         self.root.after(15, self.update_video_loop)
 
@@ -477,11 +500,66 @@ class VideoToGifCropper:
             cy0 = int(round(self.render_offset[1] + fy0 * self.render_scale))
             cx1 = int(round(self.render_offset[0] + fx1 * self.render_scale))
             cy1 = int(round(self.render_offset[1] + fy1 * self.render_scale))
-            # Remove previous rect
+            # Remove previous rect and guides
             if self.canvas_rect_id is not None:
                 self.canvas.delete(self.canvas_rect_id)
                 self.canvas_rect_id = None
+            if self.canvas_guide_h_id is not None:
+                self.canvas.delete(self.canvas_guide_h_id)
+                self.canvas_guide_h_id = None
+            if self.canvas_guide_v_id is not None:
+                self.canvas.delete(self.canvas_guide_v_id)
+                self.canvas_guide_v_id = None
+            
+            # Draw crop rectangle
             self.canvas_rect_id = self.canvas.create_rectangle(cx0, cy0, cx1, cy1, outline="orange", width=2)
+            
+            # Draw center guide lines if enabled
+            if self.show_center_guides.get():
+                # Calculate center positions
+                center_x = (cx0 + cx1) // 2
+                center_y = (cy0 + cy1) // 2
+                # Draw dashed horizontal center line
+                self.canvas_guide_h_id = self.canvas.create_line(
+                    cx0, center_y, cx1, center_y,
+                    fill="cyan", width=1, dash=(4, 4)
+                )
+                # Draw dashed vertical center line
+                self.canvas_guide_v_id = self.canvas.create_line(
+                    center_x, cy0, center_x, cy1,
+                    fill="cyan", width=1, dash=(4, 4)
+                )
+
+    def on_center_guides_changed(self):
+        """Callback when center guides checkbox is toggled."""
+        # Refresh the display to show/hide guides
+        self.show_frame()
+
+    def update_current_time_label(self):
+        """Update the current position time label."""
+        if not self.cap or not self.cap.isOpened():
+            self.lbl_current_time.config(text="0.000s")
+            return
+        current_time = self.current_frame_index / self.fps if self.fps > 0 else 0.0
+        self.lbl_current_time.config(text=f"{current_time:.3f}s")
+
+    def set_start_from_current(self):
+        """Set the start time to the current timeline position."""
+        if not self.cap or not self.cap.isOpened():
+            return
+        current_time = self.current_frame_index / self.fps if self.fps > 0 else 0.0
+        self.start_time_var.set(round(current_time, 3))
+        self.on_time_changed()
+        self.status(f"Start time set to {current_time:.3f}s (frame {self.current_frame_index})")
+
+    def set_end_from_current(self):
+        """Set the end time to the current timeline position."""
+        if not self.cap or not self.cap.isOpened():
+            return
+        current_time = self.current_frame_index / self.fps if self.fps > 0 else 0.0
+        self.end_time_var.set(round(current_time, 3))
+        self.on_time_changed()
+        self.status(f"End time set to {current_time:.3f}s (frame {self.current_frame_index})")
 
     def on_time_changed(self, _evt=None):
         # Clamp and normalize times
@@ -690,19 +768,20 @@ class VideoToGifCropper:
         else:
             delay_ms = max(1, int(self.delay_ms_var.get()))
 
-        # Per-frame durations with first/last overrides
+        # Per-frame durations with first/last EXTRA delays (added to base delay)
         try:
-            first_ms = max(1, int(self.first_delay_ms_var.get()))
+            first_extra_ms = int(self.first_delay_ms_var.get())
         except Exception:
-            first_ms = delay_ms
+            first_extra_ms = 0
         try:
-            last_ms = max(1, int(self.last_delay_ms_var.get()))
+            last_extra_ms = int(self.last_delay_ms_var.get())
         except Exception:
-            last_ms = delay_ms
+            last_extra_ms = 0
         durations = [delay_ms for _ in range(len(frames_pil))]
         if durations:
-            durations[0] = first_ms
-            durations[-1] = last_ms
+            durations[0] = max(1, delay_ms + first_extra_ms)
+            if len(durations) > 1:
+                durations[-1] = max(1, delay_ms + last_extra_ms)
 
         # Save
         try:
@@ -773,6 +852,11 @@ class VideoToGifCropper:
         self.duration_sec = (self.frame_count / self.fps) if self.fps > 0 else 0.0
         self.start_time_var.set(0.0)
         self.end_time_var.set(round(self.duration_sec, 3))
+        # Set default delay to match video FPS for exact timing
+        if self.fps > 0:
+            default_delay = int(round(1000.0 / self.fps))
+            self.delay_ms_var.set(default_delay)
+        self.update_current_time_label()
         self.draw_range_overlay()
 
     def status(self, msg: str):

@@ -83,7 +83,8 @@ def create_example_json(json_file):
             "path_start": "C:\\path\\to\\project\\",
             "path_end": "example",
             "backup": True,
-            "press_hotkey": False
+            "press_hotkey": False,
+            "is_folder_command": False
         },
         {
             "name": "Hotkey_Example",
@@ -93,7 +94,8 @@ def create_example_json(json_file):
             "path_start": "",
             "path_end": "",
             "backup": False,
-            "press_hotkey": True
+            "press_hotkey": True,
+            "is_folder_command": False
         }
     ]
 
@@ -122,7 +124,8 @@ def csv_to_json_ui():
                 "path_start": row.get("path_start", ""),
                 "path_end": row.get("path_end", ""),
                 "backup": str_to_bool(row.get("backup", True)),
-                "press_hotkey": str_to_bool(row.get("press_hotkey", True))
+                "press_hotkey": str_to_bool(row.get("press_hotkey", True)),
+                "is_folder_command": str_to_bool(row.get("is_folder_command", False))
             }
             new_actions.append(json_action)
             log_csv_to_json_conversion(row, json_action)
@@ -344,20 +347,29 @@ def process_recognized_speech(text):
 
 def execute_action(action):
     # actions are hotkeys or move_files
-    if action['press_hotkey']:
-        pyautogui.hotkey(*action['hotkey'].split('+'))
-        if 'app' in globals():
-            app.log_both(f"Hotkey '{action['hotkey']}' triggered.")
-    if action['name'].lower() == "folder":
+    action_name = (action.get('name') or '').strip()
+    if action.get('press_hotkey'):
+        hotkey_str = (action.get('hotkey') or '').strip()
+        if hotkey_str:
+            pyautogui.hotkey(*hotkey_str.split('+'))
+            if 'app' in globals():
+                app.log_both(f"Hotkey '{hotkey_str}' triggered.")
+    if action.get('is_folder_command') or action_name.lower() == "folder":
         organize_file_into_folder()
-    elif action['name'].lower() == "archive":
+    elif action_name.lower() == "archive":
         archive_selected_files_to_local_backup()
     else:
-        move_file(action['path_start'], action['path_end'], action['backup'], action_name=action.get('name'), action_obj=action)
+        move_file(
+            action.get('path_start', ''),
+            action.get('path_end', ''),
+            action.get('backup', False),
+            action_name=action_name,
+            action_obj=action
+        )
     # TTS: Say back the action name if enabled
     try:
         if 'app' in globals():
-            app.on_action_triggered(action['name'])
+            app.on_action_triggered(action_name)
     except Exception as e:
         print(f"TTS error: {e}")
 
@@ -375,6 +387,26 @@ def load_actions(json_path: str = None):
             if not isinstance(actions, list):
                 print(f"Invalid JSON structure in {path}. Expected a list; got {type(actions).__name__}. Starting with empty actions.")
                 actions = []
+            else:
+                normalized = []
+                for a in actions:
+                    if not isinstance(a, dict):
+                        continue
+                    normalized_action = {
+                        'name': a.get('name', ''),
+                        'phonetic_words': a.get('phonetic_words', []),
+                        'enabled': a.get('enabled', True),
+                        'hotkey': a.get('hotkey', ''),
+                        'path_start': a.get('path_start', ''),
+                        'path_end': a.get('path_end', ''),
+                        'backup': a.get('backup', False),
+                        'press_hotkey': a.get('press_hotkey', False),
+                        'is_folder_command': a.get('is_folder_command', False),
+                    }
+                    if a.get('explorer_folder'):
+                        normalized_action['explorer_folder'] = a.get('explorer_folder')
+                    normalized.append(normalized_action)
+                actions = normalized
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON {path}: {e}. Starting with empty actions.")
         actions = []
@@ -635,7 +667,16 @@ class AudioHotkeyOrganizerUI:
                     # Color the font to match group
                     self.actions_listbox.itemconfig(tk.END, {'fg': group_color, 'bg': self.DARK_ENTRY_BG})
                     # Use a unique id for each action (hash of name+hotkey+path_start+path_end)
-                    unique_id = hash((action.get('name',''), action.get('hotkey',''), action.get('path_start',''), action.get('path_end','')))
+                    unique_id = hash((
+                        action.get('name',''),
+                        action.get('hotkey',''),
+                        action.get('path_start',''),
+                        action.get('path_end',''),
+                        action.get('press_hotkey', False),
+                        action.get('backup', False),
+                        action.get('is_folder_command', False),
+                        action.get('explorer_folder', '')
+                    ))
                     self._action_listbox_map.append({'type': 'action', 'id': unique_id, 'group_color': group_color})
                     self._action_id_map[unique_id] = action
                 # Add a blank line for spacing
@@ -737,6 +778,7 @@ class AudioHotkeyOrganizerUI:
             ("Path End", "path_end"),
             ("Backup (true/false)", "backup"),
             ("Press Hotkey (true/false)", "press_hotkey"),
+            ("Folder Command (true/false)", "is_folder_command"),
             ("Explorer Folder (optional)", "explorer_folder")
         ]
         entries = {}
@@ -749,6 +791,7 @@ class AudioHotkeyOrganizerUI:
         entries['enabled'].insert(0, 'true')
         entries['backup'].insert(0, 'true')
         entries['press_hotkey'].insert(0, 'false')
+        entries['is_folder_command'].insert(0, 'false')
 
         def submit():
             try:
@@ -760,7 +803,8 @@ class AudioHotkeyOrganizerUI:
                     "path_start": entries['path_start'].get().strip(),
                     "path_end": entries['path_end'].get().strip(),
                     "backup": entries['backup'].get().strip().lower() in ['true', '1', 'yes', 'on', 'enabled'],
-                    "press_hotkey": entries['press_hotkey'].get().strip().lower() in ['true', '1', 'yes', 'on', 'enabled']
+                    "press_hotkey": entries['press_hotkey'].get().strip().lower() in ['true', '1', 'yes', 'on', 'enabled'],
+                    "is_folder_command": entries['is_folder_command'].get().strip().lower() in ['true', '1', 'yes', 'on', 'enabled']
                 }
                 explorer_folder_val = entries['explorer_folder'].get().strip()
                 if explorer_folder_val:
@@ -811,6 +855,7 @@ class AudioHotkeyOrganizerUI:
             ("Path End", "path_end"),
             ("Backup (true/false)", "backup"),
             ("Press Hotkey (true/false)", "press_hotkey"),
+            ("Folder Command (true/false)", "is_folder_command"),
             ("Explorer Folder (optional)", "explorer_folder")
         ]
         entries = {}
@@ -879,7 +924,8 @@ class AudioHotkeyOrganizerUI:
                 "path_start": self.action_editor_widgets['path_start'].get().strip(),
                 "path_end": self.action_editor_widgets['path_end'].get().strip(),
                 "backup": self.action_editor_widgets['backup'].get().strip().lower() in ['true', '1', 'yes', 'on', 'enabled'],
-                "press_hotkey": self.action_editor_widgets['press_hotkey'].get().strip().lower() in ['true', '1', 'yes', 'on', 'enabled']
+                "press_hotkey": self.action_editor_widgets['press_hotkey'].get().strip().lower() in ['true', '1', 'yes', 'on', 'enabled'],
+                "is_folder_command": self.action_editor_widgets['is_folder_command'].get().strip().lower() in ['true', '1', 'yes', 'on', 'enabled']
             }
             explorer_folder_val = self.action_editor_widgets['explorer_folder'].get().strip()
             if explorer_folder_val:

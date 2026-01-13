@@ -89,6 +89,7 @@ class MainWindow(QMainWindow):
         self.current_item = None
         self.folder_path = ''
         self.current_project_name = ''
+        self.show_01_mode = False  # Toggle for showing 01 subfolders
 
         # Data structures
         self.images = []
@@ -171,11 +172,46 @@ class MainWindow(QMainWindow):
         self.browse_button = QPushButton("Browse")
         self.browse_button.clicked.connect(self.browse_project_folder)
 
+        self.toggle_01_button = QPushButton("Show 01")
+        self.toggle_01_button.setCheckable(True)
+        self.toggle_01_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2a2a2a;
+                border: 1px solid #404040;
+                padding: 4px 12px;
+                color: #c0c0c0;
+            }
+            QPushButton:checked {
+                background-color: #4287f5;
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: #404040;
+            }
+        """)
+        self.toggle_01_button.clicked.connect(self.toggle_01_mode)
+
+        self.open_folder_button = QPushButton("Open Folder")
+        self.open_folder_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2a2a2a;
+                border: 1px solid #404040;
+                padding: 4px 12px;
+                color: #c0c0c0;
+            }
+            QPushButton:hover {
+                background-color: #404040;
+            }
+        """)
+        self.open_folder_button.clicked.connect(self.open_current_folder)
+
         # Add widgets to the top layout
         self.top_layout.addWidget(self.project_line_edit)
         self.top_layout.addWidget(self.middle_folder_line_edit)
         self.top_layout.addWidget(self.use_gen_folder_checkbox)
         self.top_layout.addWidget(self.browse_button)
+        self.top_layout.addWidget(self.toggle_01_button)
+        self.top_layout.addWidget(self.open_folder_button)
         self.main_layout.addWidget(self.top_widget)
 
         # Main horizontal layout for CATEGORY, ITEM, and images
@@ -399,9 +435,54 @@ class MainWindow(QMainWindow):
         self.load_images(item_path)
 
     # -----------------------------------------------------------------------
+    # Open Current Folder
+    # -----------------------------------------------------------------------
+    def open_current_folder(self):
+        """
+        Opens file explorer to the current folder being viewed.
+        """
+        if not self.folder_path or not os.path.exists(self.folder_path):
+            status_label = QLabel("No folder is currently being viewed")
+            status_label.setStyleSheet("color: orange;")
+            self.main_layout.addWidget(status_label)
+            QTimer.singleShot(3000, status_label.deleteLater)
+            return
+        
+        try:
+            # Windows: Use explorer.exe to open the folder
+            subprocess.run(['explorer', os.path.normpath(self.folder_path)])
+        except Exception as e:
+            status_label = QLabel(f"Error opening folder: {str(e)}")
+            status_label.setStyleSheet("color: red;")
+            self.main_layout.addWidget(status_label)
+            QTimer.singleShot(3000, status_label.deleteLater)
+
+    # -----------------------------------------------------------------------
+    # Toggle 01 Mode
+    # -----------------------------------------------------------------------
+    def toggle_01_mode(self):
+        self.show_01_mode = self.toggle_01_button.isChecked()
+        
+        # Update button text
+        if self.show_01_mode:
+            self.toggle_01_button.setText("Show All")
+        else:
+            self.toggle_01_button.setText("Show 01")
+        
+        # Reload current images if an item is selected
+        if self.current_item and self.current_category:
+            category_path = os.path.join(self.project_folder, self.current_category)
+            if self.middle_folder:
+                item_path = os.path.join(category_path, self.middle_folder, self.current_item)
+            else:
+                item_path = os.path.join(category_path, self.current_item)
+            self.load_images(item_path)
+
+    # -----------------------------------------------------------------------
     # Load & Display Images
     # -----------------------------------------------------------------------
     def load_images(self, item_path):
+        # Determine base path based on gen folder checkbox
         if self.use_gen_folder_checkbox.isChecked():
             image_folder_path = os.path.join(item_path, 'gen')
             if not os.path.exists(image_folder_path):
@@ -413,6 +494,20 @@ class MainWindow(QMainWindow):
                 return
         else:
             image_folder_path = item_path
+        
+        # If in 01 mode, look for 01 subfolder
+        if self.show_01_mode:
+            subfolder_01_path = os.path.join(image_folder_path, '01')
+            if os.path.exists(subfolder_01_path):
+                image_folder_path = subfolder_01_path
+            else:
+                # Show message that 01 folder doesn't exist
+                status_label = QLabel(f"'01' subfolder not found in {image_folder_path}")
+                status_label.setStyleSheet("color: orange;")
+                self.main_layout.addWidget(status_label)
+                QTimer.singleShot(3000, status_label.deleteLater)
+                # Continue with the main folder instead of returning
+                pass
 
         self.folder_path = image_folder_path
         valid_exts = ('.jpg', '.jpeg', '.png', '.webp')
