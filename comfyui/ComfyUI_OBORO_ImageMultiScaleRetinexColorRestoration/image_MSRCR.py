@@ -8,29 +8,34 @@ class OBORO_ImageRetinexEnhancementNode:
     A ComfyUI node that applies Multi-Scale Retinex with Color Restoration (MSRCR)
     to enhance the dynamic range and color constancy of input images.
 
-    This node implements the MSRCR algorithm as described in the Retinex literature
-    (see e.g. Jobson, Rahman, and Woodell, "A Multiscale Retinex for Bridging the Gap Between Color Images and the Human Observation of Scenes," IEEE Transactions on Image Processing, 1997).
+    This implementation follows the MSRCR algorithm as described in the Retinex literature
+    (Jobson, Rahman, and Woodell, "A Multiscale Retinex for Bridging the Gap Between 
+    Color Images and the Human Observation of Scenes," IEEE Transactions on Image 
+    Processing, 1997) 
 
-    The parameters exposed in this node correspond to the original MSRCR algorithm notation:
-
+    Parameters ( with corresponding original MSRCR notation):
         - gaussian_sigma_small, gaussian_sigma_medium, gaussian_sigma_large: σ₁, σ₂, σ₃ (Gaussian blur scales)
-        - color_restoration_strength: α (alpha, color restoration strength)
-        - color_restoration_offset: β (beta, color restoration offset)
-        - output_gain: G (gain, output multiplier)
-        - output_offset: b (offset, output offset)
+        - color_restoration_strength: α (alpha parameter, color restoration strength)
+        - color_restoration_offset: β (beta parameter, color restoration offset)
+        - output_gain: G (gain parameter, output multiplier)
+        - output_offset: b (offset parameter, output offset)
 
-    Variable names in this implementation are verbose for clarity, but map directly to the standard
-    notation in the literature. See the referenced paper for mathematical details.
+    Processing Pipeline:
+        1. Input images [0,1] → scaled to [1,256] (adding 1.0 to avoid log(0))
+        2. Apply Multi-Scale Retinex using log10 operations
+        3. Compute color restoration factor for color images
+        4. Combine MSR and color restoration results
+        5. Normalize each channel to [0,255] range
+        6. Apply color balance enhancement with percentile clipping
+        7. Convert back to [0,1] range for output
 
-    This algorithm is useful in lighting situations, as it enhances details in both shadows and highlights while preserving natural colors.
+    The node processes images in batches (shape: [B, H, W, C]) and supports both
+    color (multi-channel) and grayscale (single channel) images. For grayscale images,
+    only Multi-Scale Retinex is applied without color restoration.
 
-    The node processes images in a batch (expected shape: [B, H, W, C]) and supports both
-    color (multi-channel) and grayscale (single channel) images.
-
-    Note:
-      The algorithm scales input images (assumed in [0, 1]) to [0, 255] internally,
-      then applies a logarithmic transformation to avoid numerical issues. Final results
-      are normalized back to [0, 1].
+    This algorithm is particularly effective for challenging lighting conditions,
+    enhancing details in both shadows and highlights while maintaining natural colors
+    and preventing overexposure artifacts.
     """
 
     @classmethod
@@ -42,31 +47,31 @@ class OBORO_ImageRetinexEnhancementNode:
             "optional": {
                 "gaussian_sigma_small": (
                     "FLOAT",
-                    {"default": 15.0, "min": 0.1, "max": 500.0, "step": 0.1},
+                    {"default": 12.0, "min": 0.1, "max": 500.0, "step": 0.1},
                 ),
                 "gaussian_sigma_medium": (
                     "FLOAT",
-                    {"default": 80.0, "min": 0.1, "max": 500.0, "step": 0.1},
+                    {"default": 60.0, "min": 0.1, "max": 500.0, "step": 0.1},
                 ),
                 "gaussian_sigma_large": (
                     "FLOAT",
-                    {"default": 250.0, "min": 0.1, "max": 500.0, "step": 0.1},
+                    {"default": 180.0, "min": 0.1, "max": 500.0, "step": 0.1},
                 ),
                 "color_restoration_strength": (
                     "FLOAT",
-                    {"default": 125.0, "min": 0.1, "max": 500.0, "step": 0.1},
+                    {"default": 100.0, "min": 0.1, "max": 500.0, "step": 0.1},
                 ),
                 "color_restoration_offset": (
                     "FLOAT",
-                    {"default": 46.0, "min": 0.1, "max": 500.0, "step": 0.1},
+                    {"default": 25.0, "min": 0.1, "max": 500.0, "step": 0.1},
                 ),
                 "output_gain": (
                     "FLOAT",
-                    {"default": 1.0, "min": 0.1, "max": 10.0, "step": 0.1},
+                    {"default": 1.2, "min": 0.1, "max": 10.0, "step": 0.1},
                 ),
                 "output_offset": (
                     "FLOAT",
-                    {"default": 0.0, "min": -100.0, "max": 100.0, "step": 0.1},
+                    {"default": -0.5, "min": -100.0, "max": 100.0, "step": 0.1},
                 ),
             },
         }
@@ -93,10 +98,10 @@ class OBORO_ImageRetinexEnhancementNode:
             gaussian_sigma_small (float): Sigma value for the smallest scale of Gaussian blurring.
             gaussian_sigma_medium (float): Sigma value for the medium scale of Gaussian blurring.
             gaussian_sigma_large (float): Sigma value for the largest scale of Gaussian blurring.
-            color_restoration_strength (float): Controls the strength of the color restoration.
-            color_restoration_offset (float): Controls the offset of the color restoration.
-            output_gain (float): Gain multiplier applied to the final result.
-            output_offset (float): Offset subtracted from the MSRCR result.
+            color_restoration_strength (float): Alpha parameter - controls the strength of the color restoration.
+            color_restoration_offset (float): Beta parameter - controls the offset of the color restoration.
+            output_gain (float): G parameter - gain multiplier applied to the final result.
+            output_offset (float): b parameter - offset added to the MSRCR result.
 
         Returns:
             Tuple containing a single torch.Tensor of enhanced images.
@@ -111,70 +116,25 @@ class OBORO_ImageRetinexEnhancementNode:
         # Define sigma scales based on node parameters.
         gaussian_sigma_scales = [gaussian_sigma_small, gaussian_sigma_medium, gaussian_sigma_large]
 
-        epsilon = 1e-6  # Small constant to avoid log(0)
-
         # Process each image in the batch individually.
         for single_image in image_batch_np:
             # Retrieve image dimensions.
             image_height, image_width, num_channels = single_image.shape
 
-            # Scale image to [0, 255] and add 1.0 to avoid taking log(0).
-            # (This converts an image from [0, 1] to [1, 256].)
+            # Convert image to [0, 255] range and add 1.0 to avoid log(0)
             image_scaled = single_image.astype(np.float64) * 255.0 + 1.0
 
             if num_channels > 1:
-                # --- Process Color Images ---
-                # Initialize the Multi-Scale Retinex (MSR) result.
-                msr_result = np.zeros_like(image_scaled, dtype=np.float64)
-
-                # Apply Single-Scale Retinex (SSR) for each sigma value and accumulate the results.
-                for current_gaussian_sigma in gaussian_sigma_scales:
-                    blurred_image = cv2.GaussianBlur(image_scaled, (0, 0), current_gaussian_sigma)
-                    msr_result += np.log(image_scaled + epsilon) - np.log(blurred_image + epsilon)
-
-                # Average the SSR results across scales.
-                msr_result = msr_result / float(len(gaussian_sigma_scales))
-
-                # Compute the Color Restoration Factor.
-                sum_channels = np.sum(image_scaled, axis=2, keepdims=True) + epsilon
-                color_restoration_factor = color_restoration_offset * (
-                    np.log(color_restoration_strength * image_scaled + epsilon) - np.log(sum_channels)
+                # --- Process Color Images with MSRCR ---
+                enhanced_image = self.apply_multi_scale_retinex_color_restoration(
+                    image_scaled, gaussian_sigma_scales, 
+                    color_restoration_strength, color_restoration_offset, 
+                    output_gain, output_offset
                 )
-
-                # Combine MSR and Color Restoration to obtain the MSRCR result.
-                msrcr_result = output_gain * (msr_result * color_restoration_factor - output_offset)
-
-                # Normalize each channel independently to [0, 1]
-                normalized_result = np.zeros_like(msrcr_result)
-                for c in range(num_channels):
-                    channel = msrcr_result[:, :, c]
-                    channel_min = np.min(channel)
-                    channel_max = np.max(channel)
-                    normalized_result[:, :, c] = (channel - channel_min) / (
-                        channel_max - channel_min + epsilon
-                    )
-                enhanced_image = np.clip(normalized_result, 0.0, 1.0)
-
             else:
-                # --- Process Grayscale Images ---
-                # For grayscale images, apply Multi-Scale Retinex without color restoration.
-                msr_result = np.zeros_like(image_scaled[:, :, 0], dtype=np.float64)
-
-                for current_gaussian_sigma in gaussian_sigma_scales:
-                    blurred_image = cv2.GaussianBlur(image_scaled, (0, 0), current_gaussian_sigma)
-                    msr_result += np.log(image_scaled[:, :, 0] + epsilon) - np.log(
-                        blurred_image[:, :, 0] + epsilon
-                    )
-
-                msr_result = msr_result / float(len(gaussian_sigma_scales))
-                channel_min = np.min(msr_result)
-                channel_max = np.max(msr_result)
-                normalized_result = (msr_result - channel_min) / (
-                    channel_max - channel_min + epsilon
-                )
-                # Expand dimensions to restore channel dimension.
-                enhanced_image = np.expand_dims(
-                    np.clip(normalized_result, 0.0, 1.0), axis=2
+                # --- Process Grayscale Images with MSR only ---
+                enhanced_image = self.apply_multi_scale_retinex_grayscale(
+                    image_scaled, gaussian_sigma_scales
                 )
 
             # Append the enhanced image (converted to float32) to the list.
@@ -187,6 +147,103 @@ class OBORO_ImageRetinexEnhancementNode:
         output_images_tensor = torch.from_numpy(output_images_np).to(input_image.device)
 
         return (output_images_tensor,)
+    
+    def compute_single_scale_retinex_transformation(self, input_image, gaussian_blur_sigma):
+        """Apply Single Scale Retinex transformation using logarithmic base-10 operations."""
+        gaussian_blurred_image = cv2.GaussianBlur(input_image, (0, 0), gaussian_blur_sigma)
+        return np.log10(input_image) - np.log10(gaussian_blurred_image)
+    
+    def compute_multi_scale_retinex_transformation(self, input_image, gaussian_sigma_list):
+        """Apply Multi Scale Retinex by averaging Single Scale Retinex results across multiple scales."""
+        accumulated_retinex_result = np.zeros_like(input_image, dtype=np.float64)
+        for current_gaussian_sigma in gaussian_sigma_list:
+            accumulated_retinex_result += self.compute_single_scale_retinex_transformation(input_image, current_gaussian_sigma)
+        return accumulated_retinex_result / len(gaussian_sigma_list)
+    
+    def compute_color_restoration_factor(self, input_image, color_restoration_alpha, color_restoration_beta):
+        """Apply color restoration factor computation using logarithmic channel summation."""
+        channel_sum_image = np.sum(input_image, axis=2, keepdims=True)
+        return color_restoration_beta * (np.log10(color_restoration_alpha * input_image) - np.log10(channel_sum_image))
+    
+    def apply_color_balance_enhancement(self, input_image, low_percentile_clip=0.01, high_percentile_clip=0.99):
+        """Apply color balance for contrast enhancement using percentile-based clipping."""
+        total_pixel_count = input_image.shape[0] * input_image.shape[1]
+        for channel_index in range(input_image.shape[2]):
+            unique_values, pixel_counts = np.unique(input_image[:, :, channel_index], return_counts=True)
+            cumulative_pixel_count = 0
+            low_clip_value = unique_values[0]
+            high_clip_value = unique_values[-1]
+            
+            for unique_value, pixel_count in zip(unique_values, pixel_counts):
+                if float(cumulative_pixel_count) / total_pixel_count < low_percentile_clip:
+                    low_clip_value = unique_value
+                if float(cumulative_pixel_count) / total_pixel_count < high_percentile_clip:
+                    high_clip_value = unique_value
+                cumulative_pixel_count += pixel_count
+            
+            input_image[:, :, channel_index] = np.maximum(np.minimum(input_image[:, :, channel_index], high_clip_value), low_clip_value)
+        
+        return input_image
+    
+    def apply_multi_scale_retinex_color_restoration(self, input_image, gaussian_sigma_list, color_restoration_alpha, color_restoration_beta, output_gain_multiplier, output_offset_value):
+        """Apply complete Multi-Scale Retinex with Color Restoration algorithm."""
+        # Compute Multi-Scale Retinex transformation
+        multi_scale_retinex_result = self.compute_multi_scale_retinex_transformation(input_image, gaussian_sigma_list)
+        
+        # Compute Color Restoration factor
+        color_restoration_result = self.compute_color_restoration_factor(input_image, color_restoration_alpha, color_restoration_beta)
+        
+        # Combine Multi-Scale Retinex and Color Restoration using addition operation
+        msrcr_combined_result = output_gain_multiplier * (multi_scale_retinex_result * color_restoration_result + output_offset_value)
+        
+        # Normalize each channel independently to [0, 255] range
+        for channel_index in range(msrcr_combined_result.shape[2]):
+            current_channel = msrcr_combined_result[:, :, channel_index]
+            channel_minimum_value = np.min(current_channel)
+            channel_maximum_value = np.max(current_channel)
+            if channel_maximum_value > channel_minimum_value:  # Avoid division by zero
+                msrcr_combined_result[:, :, channel_index] = (current_channel - channel_minimum_value) / (channel_maximum_value - channel_minimum_value) * 255
+            else:
+                msrcr_combined_result[:, :, channel_index] = 0
+        
+        # Clip to valid range and convert to uint8 for color balance processing
+        msrcr_uint8_result = np.uint8(np.clip(msrcr_combined_result, 0, 255))
+        
+        # Apply simplest color balance enhancement
+        color_balanced_result = self.apply_color_balance_enhancement(msrcr_uint8_result)
+        
+        # Convert back to [0, 1] range for final output
+        return color_balanced_result.astype(np.float64) / 255.0
+    
+    def apply_multi_scale_retinex_grayscale(self, input_image, gaussian_sigma_list):
+        """Apply Multi-Scale Retinex transformation to grayscale images."""
+        # Extract single channel for processing
+        grayscale_channel = input_image[:, :, 0] if len(input_image.shape) == 3 else input_image
+        
+        # Apply Multi-Scale Retinex transformation
+        accumulated_msr_result = np.zeros_like(grayscale_channel, dtype=np.float64)
+        for current_gaussian_sigma in gaussian_sigma_list:
+            gaussian_blurred_channel = cv2.GaussianBlur(grayscale_channel, (0, 0), current_gaussian_sigma)
+            accumulated_msr_result += np.log10(grayscale_channel) - np.log10(gaussian_blurred_channel)
+        
+        averaged_msr_result = accumulated_msr_result / len(gaussian_sigma_list)
+        
+        # Normalize to [0, 255] range
+        channel_minimum_value = np.min(averaged_msr_result)
+        channel_maximum_value = np.max(averaged_msr_result)
+        if channel_maximum_value > channel_minimum_value:
+            normalized_channel_result = (averaged_msr_result - channel_minimum_value) / (channel_maximum_value - channel_minimum_value) * 255
+        else:
+            normalized_channel_result = np.zeros_like(averaged_msr_result)
+        
+        # Convert to uint8 and back to [0, 1] range
+        final_grayscale_result = np.uint8(np.clip(normalized_channel_result, 0, 255)).astype(np.float64) / 255.0
+        
+        # Expand dimensions to restore channel dimension if needed
+        if len(input_image.shape) == 3:
+            final_grayscale_result = np.expand_dims(final_grayscale_result, axis=2)
+        
+        return final_grayscale_result
 
 
 # ComfyUI custom node classes to load 

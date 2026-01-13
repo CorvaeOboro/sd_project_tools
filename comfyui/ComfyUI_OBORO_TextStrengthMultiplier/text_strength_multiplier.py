@@ -29,13 +29,13 @@ class OBOROTextStrengthMultiplierNode:
         return {
             "required": {
                 "text": ("STRING", {"default": "", "multiline": True}),
-                "multiplier": ("FLOAT", {"default": 1.0}),
+                "multiplier": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step": 0.0001, "round": 0.0001}),
                 "individual_cap_enabled": ("BOOLEAN", {"default": False}),
-                "individual_cap": ("FLOAT", {"default": 1.0}),
+                "individual_cap": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step": 0.0001, "round": 0.0001}),
                 "individual_min_enabled": ("BOOLEAN", {"default": False}),
-                "individual_min": ("FLOAT", {"default": 0.0}),
+                "individual_min": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 100.0, "step": 0.0001, "round": 0.0001}),
                 "total_cap_enabled": ("BOOLEAN", {"default": False}),
-                "total_cap": ("FLOAT", {"default": 1.0}),
+                "total_cap": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step": 0.0001, "round": 0.0001}),
             },
             "optional": {},
             "hidden": {},
